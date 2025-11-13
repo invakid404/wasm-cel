@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 try {
   const goroot = execSync('go env GOROOT', { encoding: 'utf-8' }).trim();
@@ -14,8 +18,10 @@ try {
   
   for (const srcPath of paths) {
     if (fs.existsSync(srcPath)) {
-      fs.copyFileSync(srcPath, 'wasm_exec.js');
-      console.log(`✓ wasm_exec.js copied successfully from ${path.relative(goroot, srcPath)}`);
+      // Copy as .cjs so it's explicitly treated as CommonJS in ESM package
+      const destPath = path.join(__dirname, '..', 'wasm_exec.cjs');
+      fs.copyFileSync(srcPath, destPath);
+      console.log(`✓ wasm_exec.cjs copied successfully from ${path.relative(goroot, srcPath)}`);
       process.exit(0);
     }
   }

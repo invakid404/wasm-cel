@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"syscall/js"
+
+	"github.com/invakid404/wasm-cel/internal/cel"
 )
 
 // evaluateCEL evaluates a CEL expression with the given variables
@@ -34,7 +36,7 @@ func evaluateCEL(this js.Value, args []js.Value) interface{} {
 	}
 
 	// Use the core evaluation function
-	return EvaluateCELCore(exprStr, vars)
+	return cel.EvaluateCore(exprStr, vars)
 }
 
 func main() {

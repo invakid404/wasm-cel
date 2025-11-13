@@ -5,10 +5,16 @@
 
 set -e
 
+# Get the script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT"
+
 echo "Building WASM module..."
 
-# Build the WASM module
-GOOS=js GOARCH=wasm go build -o main.wasm .
+# Build the WASM module from cmd/wasm directory
+GOOS=js GOARCH=wasm go build -o main.wasm ./cmd/wasm
 
 echo "✓ WASM module built successfully"
 

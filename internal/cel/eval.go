@@ -1,4 +1,4 @@
-package main
+package cel
 
 import (
 	"fmt"
@@ -11,9 +11,9 @@ import (
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
-// EvaluateCELCore evaluates a CEL expression with the given variables
+// EvaluateCore evaluates a CEL expression with the given variables
 // This is the core evaluation logic without WASM-specific code
-func EvaluateCELCore(exprStr string, vars map[string]interface{}) map[string]interface{} {
+func EvaluateCore(exprStr string, vars map[string]interface{}) map[string]interface{} {
 	// Add variable declarations based on provided vars
 	var varDecls []*exprpb.Decl
 	for name, val := range vars {
@@ -67,7 +67,7 @@ func EvaluateCELCore(exprStr string, vars map[string]interface{}) map[string]int
 	}
 
 	// Convert CEL value to JSON-serializable value
-	result := celValueToJSON(out)
+	result := ValueToJSON(out)
 
 	return map[string]interface{}{
 		"result": result,
@@ -97,8 +97,8 @@ func inferDeclType(val interface{}) *exprpb.Type {
 	}
 }
 
-// celValueToJSON converts a CEL ref.Val to a JSON-serializable value
-func celValueToJSON(val ref.Val) interface{} {
+// ValueToJSON converts a CEL ref.Val to a JSON-serializable value
+func ValueToJSON(val ref.Val) interface{} {
 	if val == nil {
 		return nil
 	}
@@ -120,7 +120,7 @@ func celValueToJSON(val ref.Val) interface{} {
 		size := v.Size().Value().(int64)
 		result := make([]interface{}, size)
 		for i := int64(0); i < size; i++ {
-			result[i] = celValueToJSON(v.Get(types.Int(i)))
+			result[i] = ValueToJSON(v.Get(types.Int(i)))
 		}
 		return result
 	case traits.Mapper:
@@ -129,8 +129,8 @@ func celValueToJSON(val ref.Val) interface{} {
 		for it.HasNext() == types.True {
 			key := it.Next()
 			val := v.Get(key)
-			keyStr := fmt.Sprintf("%v", celValueToJSON(key))
-			result[keyStr] = celValueToJSON(val)
+			keyStr := fmt.Sprintf("%v", ValueToJSON(key))
+			result[keyStr] = ValueToJSON(val)
 		}
 		return result
 	default:

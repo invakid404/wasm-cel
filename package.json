@@ -2,15 +2,25 @@
   "name": "wasm-cel",
   "version": "1.0.0",
   "description": "WebAssembly module for evaluating CEL (Common Expression Language) expressions in Node.js",
-  "main": "index.js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "GOOS=js GOARCH=wasm go build -o main.wasm .",
-    "build:copy-wasm-exec": "node copy-wasm-exec.js",
-    "build:all": "npm run build && npm run build:copy-wasm-exec",
-    "test:go": "go test -v ./...",
-    "test:js": "node test.js",
-    "test": "npm run test:go && npm run test:js",
-    "example": "node example.js"
+    "build": "GOOS=js GOARCH=wasm go build -o main.wasm ./cmd/wasm",
+    "build:copy-wasm-exec": "node scripts/copy-wasm-exec.js",
+    "build:ts": "tsc",
+    "build:all": "pnpm run build && pnpm run build:copy-wasm-exec && pnpm run build:ts",
+    "prepublishOnly": "pnpm run build:all",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "example": "node examples/example.js"
   },
   "keywords": [
     "cel",
@@ -22,12 +32,12 @@
   "author": "",
   "license": "MIT",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
-  "files": [
-    "index.js",
-    "main.wasm",
-    "wasm_exec.js",
-    "README.md"
-  ]
+  "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "jest": "^30.2.0",
+    "typescript": "^5.0.0"
+  }
 }
