@@ -1,0 +1,33 @@
+{
+  "name": "wasm-cel",
+  "version": "1.0.0",
+  "description": "WebAssembly module for evaluating CEL (Common Expression Language) expressions in Node.js",
+  "main": "index.js",
+  "scripts": {
+    "build": "GOOS=js GOARCH=wasm go build -o main.wasm .",
+    "build:copy-wasm-exec": "node copy-wasm-exec.js",
+    "build:all": "npm run build && npm run build:copy-wasm-exec",
+    "test:go": "go test -v ./...",
+    "test:js": "node test.js",
+    "test": "npm run test:go && npm run test:js",
+    "example": "node example.js"
+  },
+  "keywords": [
+    "cel",
+    "common-expression-language",
+    "wasm",
+    "webassembly",
+    "expression-evaluation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "index.js",
+    "main.wasm",
+    "wasm_exec.js",
+    "README.md"
+  ]
+}
