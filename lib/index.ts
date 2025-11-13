@@ -8,35 +8,6 @@ import { createRequire } from "node:module";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Declare global types for Go WASM
-declare global {
-  interface Window {
-    Go: typeof Go;
-    evaluateCEL: (
-      expr: string,
-      vars: Record<string, any>,
-    ) => {
-      result?: any;
-      error?: string;
-    };
-  }
-
-  var Go: {
-    new (): {
-      importObject: WebAssembly.Imports;
-      run: (instance: WebAssembly.Instance) => void;
-    };
-  };
-
-  var evaluateCEL: (
-    expr: string,
-    vars: Record<string, any>,
-  ) => {
-    result?: any;
-    error?: string;
-  };
-}
-
 // Load wasm_exec.cjs if it exists, otherwise use a fallback
 // wasm_exec.cjs is a CommonJS file, so we use createRequire to load it
 let wasmExecPath = path.join(__dirname, "..", "wasm_exec.cjs");
