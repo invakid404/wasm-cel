@@ -159,7 +159,7 @@ describe('evaluateCEL', () => {
 
     test('should throw error for non-object variables', async () => {
       await expect(evaluateCEL('10 + 20', 'invalid')).rejects.toThrow(
-        'Second argument must be an object',
+        'Second argument must be an object (variables map or options) or null',
       );
     });
   });

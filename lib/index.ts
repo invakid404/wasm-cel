@@ -3,6 +3,11 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
+import type {
+  CELFunctionDefinition,
+  CELTypeDef,
+  EvaluateOptions,
+} from "./types.js";
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -97,15 +102,100 @@ export interface EvaluateResult {
 export type Variables = Record<string, any> | null;
 
 /**
- * Evaluate a CEL expression with variables
+ * Serialize a CEL type definition to a format that can be sent to Go
+ */
+function serializeTypeDef(type: CELTypeDef): any {
+  if (typeof type === "string") {
+    return type;
+  }
+  if (typeof type === "object" && type !== null) {
+    if ("kind" in type) {
+      if (type.kind === "list") {
+        return {
+          kind: "list",
+          elementType: serializeTypeDef(type.elementType),
+        };
+      }
+      if (type.kind === "map") {
+        return {
+          kind: "map",
+          keyType: serializeTypeDef(type.keyType),
+          valueType: serializeTypeDef(type.valueType),
+        };
+      }
+    }
+  }
+  return "dyn"; // Fallback to dynamic type
+}
+
+/**
+ * Serialize function definitions for transmission to Go
+ */
+// Counter for generating unique implementation IDs
+let implIDCounter = 0;
+
+function serializeFunctionDefs(functions: CELFunctionDefinition[]): Array<{
+  name: string;
+  params: Array<{ name: string; type: any; optional?: boolean }>;
+  returnType: any;
+  implID: string;
+}> {
+  return functions.map((fn, index) => {
+    // Generate a unique implementation ID
+    const implID = `${fn.name}_${index}_${++implIDCounter}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Register the JavaScript function implementation
+    const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+    if (typeof globalObj.registerCELFunction === "function") {
+      const registerResult = globalObj.registerCELFunction(implID, fn.impl);
+      if (registerResult.error) {
+        throw new Error(
+          `Failed to register function ${fn.name}: ${registerResult.error}`,
+        );
+      }
+    } else {
+      throw new Error(
+        "registerCELFunction not available. Make sure WASM is initialized.",
+      );
+    }
+
+    return {
+      name: fn.name,
+      params: fn.params.map((param) => ({
+        name: param.name,
+        type: serializeTypeDef(param.type),
+        optional: param.optional,
+      })),
+      returnType: serializeTypeDef(fn.returnType),
+      implID,
+    };
+  });
+}
+
+/**
+ * Evaluate a CEL expression with variables and optional custom functions
  * @param expr - The CEL expression to evaluate
- * @param vars - Variables to use in the expression (optional, defaults to empty object)
+ * @param options - Options including variables and custom functions
  * @returns Promise resolving to the evaluation result
  * @throws Error if the expression is invalid or evaluation fails
+ *
+ * @example
+ * ```typescript
+ * const result = await evaluateCEL("add(1, 2)", {
+ *   vars: {},
+ *   functions: [
+ *     celFunction("add")
+ *       .param("a", "int")
+ *       .param("b", "int")
+ *       .returns("int")
+ *       .implement((a, b) => a + b)
+ *   ]
+ * });
+ * ```
  */
 export async function evaluateCEL(
   expr: string,
-  vars: Variables = {},
+  options?: EvaluateOptions | Variables,
 ): Promise<EvaluateResult> {
   // Ensure WASM is initialized
   await init();
@@ -114,10 +204,37 @@ export async function evaluateCEL(
     throw new Error("First argument must be a string (CEL expression)");
   }
 
+  // Handle backward compatibility: if second arg is an object but not EvaluateOptions, treat as vars
+  let vars: Variables = null;
+  let functions: CELFunctionDefinition[] | undefined;
+
+  if (options !== undefined && options !== null) {
+    if (typeof options !== "object" || Array.isArray(options)) {
+      throw new Error(
+        "Second argument must be an object (variables map or options) or null",
+      );
+    }
+
+    // Check if it's EvaluateOptions by looking for 'vars' or 'functions' keys
+    if ("vars" in options || "functions" in options) {
+      // It's EvaluateOptions
+      const opts = options as EvaluateOptions;
+      vars = opts.vars ?? null;
+      functions = opts.functions;
+    } else {
+      // It's Variables (backward compatibility)
+      vars = options as Variables;
+    }
+  }
+
   if (vars !== null && typeof vars !== "object") {
-    throw new Error(
-      "Second argument must be an object (variables map) or null",
-    );
+    throw new Error("Variables must be an object (variables map) or null");
+  }
+
+  // Serialize function definitions if provided
+  let serializedFuncDefs: any = null;
+  if (functions && functions.length > 0) {
+    serializedFuncDefs = serializeFunctionDefs(functions);
   }
 
   return new Promise<EvaluateResult>((resolve, reject) => {
@@ -125,7 +242,11 @@ export async function evaluateCEL(
       // Call the global evaluateCEL function exposed by Go
       // In Node.js ESM, globalThis is the global object
       const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
-      const result = globalObj.evaluateCEL(expr, vars || {});
+      const result = globalObj.evaluateCEL(
+        expr,
+        vars || {},
+        serializedFuncDefs,
+      );
 
       // Convert the result to a plain JavaScript object
       const resultObj: EvaluateResult = {
@@ -144,3 +265,21 @@ export async function evaluateCEL(
     }
   });
 }
+
+// Re-export types and functions
+export type {
+  CELType,
+  CELTypeDef,
+  CELListType,
+  CELMapType,
+  CELFunctionDefinition,
+  CELFunctionParam,
+  EvaluateOptions,
+} from "./types.js";
+
+export {
+  celFunction,
+  listType,
+  mapType,
+  CELFunctionBuilder,
+} from "./functions.js";
