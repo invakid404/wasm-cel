@@ -158,23 +158,66 @@ function serializeFunctionDefs(functions: CELFunctionDefinition[]): Array<{
   });
 }
 
+// FinalizationRegistry for automatic cleanup
+// This provides best-effort cleanup when objects are garbage collected
+const programRegistry =
+  typeof FinalizationRegistry !== "undefined"
+    ? new FinalizationRegistry<string>((programID: string) => {
+        // Best-effort cleanup when program is garbage collected
+        try {
+          const globalObj =
+            typeof globalThis !== "undefined" ? globalThis : global;
+          if (typeof globalObj.destroyProgram === "function") {
+            globalObj.destroyProgram(programID);
+          }
+        } catch (err) {
+          // Ignore errors during finalization - this is best-effort only
+        }
+      })
+    : null;
+
+const envRegistry =
+  typeof FinalizationRegistry !== "undefined"
+    ? new FinalizationRegistry<string>((envID: string) => {
+        // Best-effort cleanup when environment is garbage collected
+        try {
+          const globalObj =
+            typeof globalThis !== "undefined" ? globalThis : global;
+          if (typeof globalObj.destroyEnv === "function") {
+            globalObj.destroyEnv(envID);
+          }
+        } catch (err) {
+          // Ignore errors during finalization - this is best-effort only
+        }
+      })
+    : null;
+
 /**
  * A compiled CEL program that can be evaluated with variables
  */
 export class Program {
   private programID: string;
+  private destroyed: boolean = false;
 
   constructor(programID: string) {
     this.programID = programID;
+    // Register for automatic cleanup via FinalizationRegistry
+    if (programRegistry) {
+      programRegistry.register(this, programID);
+    }
   }
 
   /**
    * Evaluate the compiled program with the given variables
    * @param vars - Variables to use in the evaluation
    * @returns Promise resolving to the evaluation result
-   * @throws Error if evaluation fails
+   * @throws Error if evaluation fails or program has been destroyed
    */
   async eval(vars: Record<string, any> | null = null): Promise<any> {
+    if (this.destroyed) {
+      throw new Error("Program has been destroyed");
+    }
+
     await init();
 
     return new Promise<any>((resolve, reject) => {
@@ -194,6 +237,39 @@ export class Program {
       }
     });
   }
+
+  /**
+   * Destroy this program and free associated WASM resources.
+   * After calling destroy(), this program instance should not be used.
+   * If FinalizationRegistry is available, resources will be automatically
+   * cleaned up when the object is garbage collected, but explicit cleanup
+   * is recommended.
+   */
+  destroy(): void {
+    if (this.destroyed) {
+      return; // Already destroyed, no-op
+    }
+
+    try {
+      const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+      if (typeof globalObj.destroyProgram === "function") {
+        const result = globalObj.destroyProgram(this.programID);
+        if (result.error) {
+          // Log but don't throw - cleanup should be best-effort
+          console.warn(`Failed to destroy program: ${result.error}`);
+        }
+      }
+    } catch (err) {
+      // Log but don't throw - cleanup should be best-effort
+      console.warn(`Error destroying program: ${err}`);
+    } finally {
+      this.destroyed = true;
+      // Unregister from FinalizationRegistry since we've explicitly cleaned up
+      if (programRegistry) {
+        programRegistry.unregister(this);
+      }
+    }
+  }
 }
 
 /**
@@ -201,9 +277,14 @@ export class Program {
  */
 export class Env {
   private envID: string;
+  private destroyed: boolean = false;
 
   private constructor(envID: string) {
     this.envID = envID;
+    // Register for automatic cleanup via FinalizationRegistry
+    if (envRegistry) {
+      envRegistry.register(this, envID);
+    }
   }
 
   /**
@@ -268,7 +349,7 @@ export class Env {
    * Compile a CEL expression in this environment
    * @param expr - The CEL expression to compile
    * @returns Promise resolving to a compiled Program
-   * @throws Error if compilation fails
+   * @throws Error if compilation fails or environment has been destroyed
    *
    * @example
    * ```typescript
@@ -281,6 +362,10 @@ export class Env {
    * ```
    */
   async compile(expr: string): Promise<Program> {
+    if (this.destroyed) {
+      throw new Error("Environment has been destroyed");
+    }
+
     await init();
 
     if (typeof expr !== "string") {
@@ -311,7 +396,7 @@ export class Env {
    * Typecheck a CEL expression in this environment without compiling it
    * @param expr - The CEL expression to typecheck
    * @returns Promise resolving to the type information
-   * @throws Error if typechecking fails
+   * @throws Error if typechecking fails or environment has been destroyed
    *
    * @example
    * ```typescript
@@ -326,6 +411,10 @@ export class Env {
    * ```
    */
   async typecheck(expr: string): Promise<TypeCheckResult> {
+    if (this.destroyed) {
+      throw new Error("Environment has been destroyed");
+    }
+
     await init();
 
     if (typeof expr !== "string") {
@@ -350,6 +439,41 @@ export class Env {
         reject(new Error(`WASM call failed: ${error.message}`));
       }
     });
+  }
+
+  /**
+   * Destroy this environment and free associated WASM resources.
+   * This will also clean up any registered JavaScript functions associated
+   * with this environment.
+   * After calling destroy(), this environment instance should not be used.
+   * If FinalizationRegistry is available, resources will be automatically
+   * cleaned up when the object is garbage collected, but explicit cleanup
+   * is recommended.
+   */
+  destroy(): void {
+    if (this.destroyed) {
+      return; // Already destroyed, no-op
+    }
+
+    try {
+      const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+      if (typeof globalObj.destroyEnv === "function") {
+        const result = globalObj.destroyEnv(this.envID);
+        if (result.error) {
+          // Log but don't throw - cleanup should be best-effort
+          console.warn(`Failed to destroy environment: ${result.error}`);
+        }
+      }
+    } catch (err) {
+      // Log but don't throw - cleanup should be best-effort
+      console.warn(`Error destroying environment: ${err}`);
+    } finally {
+      this.destroyed = true;
+      // Unregister from FinalizationRegistry since we've explicitly cleaned up
+      if (envRegistry) {
+        envRegistry.unregister(this);
+      }
+    }
   }
 }
 

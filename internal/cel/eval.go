@@ -45,19 +45,29 @@ func SetJSFunctionCaller(caller JSFunctionCaller) {
 
 // EnvState holds a CEL environment
 type EnvState struct {
-	env *cel.Env
+	env       *cel.Env
+	implIDs   []string // Track function implementation IDs for cleanup
+	destroyed bool     // Track if environment has been destroyed
 }
 
 // ProgramState holds a compiled CEL program
 type ProgramState struct {
-	prg cel.Program
+	prg   cel.Program
+	envID string // Track which environment created this program
+}
+
+// FunctionRefCount tracks reference counts for function implementations
+type FunctionRefCount struct {
+	refCount int    // Number of programs that might use this function
+	envID    string // Which environment this function belongs to
 }
 
 // Global registries for environments and programs
 var (
-	envs     = make(map[string]*EnvState)
-	programs = make(map[string]*ProgramState)
-	envIDCounter int64
+	envs             = make(map[string]*EnvState)
+	programs         = make(map[string]*ProgramState)
+	functionRefs     = make(map[string]*FunctionRefCount) // Track function reference counts
+	envIDCounter     int64
 	programIDCounter int64
 )
 
@@ -171,10 +181,33 @@ func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{
 		}
 	}
 
+	// Collect function implementation IDs for cleanup tracking
+	implIDs := make([]string, 0, len(funcDefs))
+	for _, funcDef := range funcDefs {
+		implIDs = append(implIDs, funcDef.ImplID)
+		// Initialize function reference count (starts at 0, will be incremented when programs use it)
+		functionRefs[funcDef.ImplID] = &FunctionRefCount{
+			refCount: 0,
+			envID:    "", // Will be set below
+		}
+	}
+
 	// Generate a unique environment ID
 	envIDCounter++
 	envID := fmt.Sprintf("env_%d", envIDCounter)
-	envs[envID] = &EnvState{env: env}
+
+	// Set envID for all functions in this environment
+	for _, implID := range implIDs {
+		if ref, ok := functionRefs[implID]; ok {
+			ref.envID = envID
+		}
+	}
+
+	envs[envID] = &EnvState{
+		env:       env,
+		implIDs:   implIDs,
+		destroyed: false,
+	}
 
 	return map[string]interface{}{
 		"envID": envID,
@@ -189,6 +222,13 @@ func Compile(envID string, exprStr string) map[string]interface{} {
 	if !ok {
 		return map[string]interface{}{
 			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
+	// Check if environment has been destroyed
+	if envState.destroyed {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment has been destroyed: %s", envID),
 		}
 	}
 
@@ -218,7 +258,18 @@ func Compile(envID string, exprStr string) map[string]interface{} {
 	// Generate a unique program ID
 	programIDCounter++
 	programID := fmt.Sprintf("prg_%d", programIDCounter)
-	programs[programID] = &ProgramState{prg: prg}
+	programs[programID] = &ProgramState{
+		prg:   prg,
+		envID: envID,
+	}
+
+	// Increment reference counts for all functions in this environment
+	// Programs can potentially use any function from their environment
+	for _, implID := range envState.implIDs {
+		if ref, ok := functionRefs[implID]; ok {
+			ref.refCount++
+		}
+	}
 
 	return map[string]interface{}{
 		"programID": programID,
@@ -233,6 +284,13 @@ func Typecheck(envID string, exprStr string) map[string]interface{} {
 	if !ok {
 		return map[string]interface{}{
 			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
+	// Check if environment has been destroyed
+	if envState.destroyed {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment has been destroyed: %s", envID),
 		}
 	}
 
@@ -538,5 +596,131 @@ func JSONToValue(val interface{}) ref.Val {
 			return types.NewErr("failed to unmarshal value: %v", err)
 		}
 		return JSONToValue(jsonVal)
+	}
+}
+
+// UnregisterFunctionCaller is an interface for unregistering functions
+// This allows the cel package to clean up function registrations
+type UnregisterFunctionCaller interface {
+	UnregisterFunction(implID string)
+}
+
+// Global variable to hold the unregister function caller
+// This is set by the WASM layer
+var unregisterFunctionCaller UnregisterFunctionCaller
+
+// SetUnregisterFunctionCaller sets the unregister function caller
+// This is called from the WASM layer
+func SetUnregisterFunctionCaller(caller UnregisterFunctionCaller) {
+	unregisterFunctionCaller = caller
+}
+
+// unregisterFunctionIfUnused unregisters a function if its reference count reaches 0
+func unregisterFunctionIfUnused(implID string) {
+	ref, ok := functionRefs[implID]
+	if !ok {
+		return
+	}
+
+	if ref.refCount <= 0 {
+		// Unregister the function
+		if unregisterFunctionCaller != nil {
+			unregisterFunctionCaller.UnregisterFunction(implID)
+		}
+		// Remove from function refs tracking
+		delete(functionRefs, implID)
+	}
+}
+
+// DestroyEnv destroys an environment and marks it as destroyed
+// Functions are not immediately unregistered - they will be unregistered
+// when all programs using them are destroyed (reference counting)
+// However, if no programs exist (all ref counts are 0), cleanup happens immediately
+func DestroyEnv(envID string) map[string]interface{} {
+	envState, ok := envs[envID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
+	// Mark environment as destroyed (prevents new programs from being created)
+	envState.destroyed = true
+
+	// OPTIMIZATION: Check if we can clean up immediately.
+	// If no programs exist, the refCount for all functions will be 0.
+	canCleanupImmediately := true
+	for _, implID := range envState.implIDs {
+		if ref, ok := functionRefs[implID]; ok {
+			if ref.refCount > 0 {
+				canCleanupImmediately = false
+				break
+			}
+		}
+	}
+
+	if canCleanupImmediately {
+		// No programs exist, so we can safely unregister everything now
+		for _, implID := range envState.implIDs {
+			unregisterFunctionIfUnused(implID)
+		}
+		delete(envs, envID)
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"error":   nil,
+	}
+}
+
+// DestroyProgram destroys a compiled program
+// This should be called when a program is no longer needed
+// Decrements reference counts for functions and unregisters them if no longer needed
+func DestroyProgram(programID string) map[string]interface{} {
+	programState, ok := programs[programID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("program not found: %s", programID),
+		}
+	}
+
+	// Store envID before deleting the program
+	envID := programState.envID
+
+	// Remove program from registry FIRST (before checking for remaining programs)
+	delete(programs, programID)
+
+	// Get the environment that created this program
+	envState, envExists := envs[envID]
+	if envExists {
+		// Decrement reference counts for all functions in the environment
+		for _, implID := range envState.implIDs {
+			if ref, ok := functionRefs[implID]; ok {
+				ref.refCount--
+				// Unregister function if no longer needed
+				unregisterFunctionIfUnused(implID)
+			}
+		}
+
+		// If environment is destroyed and this was the last program using it,
+		// we can clean up the environment entry
+		// Check if there are any remaining programs using this environment
+		hasRemainingPrograms := false
+		for _, prog := range programs {
+			if prog.envID == envID {
+				hasRemainingPrograms = true
+				break
+			}
+		}
+
+		// If environment is destroyed and no programs remain, remove it
+		if envState.destroyed && !hasRemainingPrograms {
+			delete(envs, envID)
+		}
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"error":   nil,
 	}
 }

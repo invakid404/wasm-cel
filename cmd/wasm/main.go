@@ -43,6 +43,11 @@ func (c *jsFunctionCaller) CallJSFunction(implID string, args []interface{}) (in
 	return goResult, nil
 }
 
+// UnregisterFunction removes a function implementation from the registry
+func (c *jsFunctionCaller) UnregisterFunction(implID string) {
+	delete(c.registry, implID)
+}
+
 var functionCaller = &jsFunctionCaller{
 	registry: make(map[string]js.Value),
 }
@@ -157,9 +162,35 @@ func evalProgram(this js.Value, args []js.Value) interface{} {
 	return cel.Eval(programID, vars)
 }
 
+// destroyEnv destroys an environment and cleans up associated resources
+func destroyEnv(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return map[string]interface{}{
+			"error": "expected 1 argument: envID string",
+		}
+	}
+
+	envID := args[0].String()
+	return cel.DestroyEnv(envID)
+}
+
+// destroyProgram destroys a compiled program
+func destroyProgram(this js.Value, args []js.Value) interface{} {
+	if len(args) < 1 {
+		return map[string]interface{}{
+			"error": "expected 1 argument: programID string",
+		}
+	}
+
+	programID := args[0].String()
+	return cel.DestroyProgram(programID)
+}
+
 func main() {
 	// Set the JavaScript function caller
 	cel.SetJSFunctionCaller(functionCaller)
+	// Set the unregister function caller (same instance)
+	cel.SetUnregisterFunctionCaller(functionCaller)
 
 	// Register the registerFunction function for registering JS function implementations
 	js.Global().Set("registerCELFunction", js.FuncOf(registerFunction))
@@ -169,6 +200,8 @@ func main() {
 	js.Global().Set("compileExpr", js.FuncOf(compileExpr))
 	js.Global().Set("typecheckExpr", js.FuncOf(typecheckExpr))
 	js.Global().Set("evalProgram", js.FuncOf(evalProgram))
+	js.Global().Set("destroyEnv", js.FuncOf(destroyEnv))
+	js.Global().Set("destroyProgram", js.FuncOf(destroyProgram))
 
 	// Keep the program running
 	// In WASM, we need to keep the main goroutine alive

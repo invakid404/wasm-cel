@@ -43,6 +43,16 @@ type TypecheckExprFunction = (
   error?: string;
 };
 
+type DestroyEnvFunction = (envID: string) => {
+  success?: boolean;
+  error?: string;
+};
+
+type DestroyProgramFunction = (programID: string) => {
+  success?: boolean;
+  error?: string;
+};
+
 type GoConstructor = {
   new (): {
     importObject: WebAssembly.Imports;
@@ -58,6 +68,8 @@ declare global {
     compileExpr: CompileExprFunction;
     typecheckExpr: TypecheckExprFunction;
     evalProgram: EvalProgramFunction;
+    destroyEnv: DestroyEnvFunction;
+    destroyProgram: DestroyProgramFunction;
   }
 
   var Go: GoConstructor;
@@ -66,6 +78,8 @@ declare global {
   var compileExpr: CompileExprFunction;
   var typecheckExpr: TypecheckExprFunction;
   var evalProgram: EvalProgramFunction;
+  var destroyEnv: DestroyEnvFunction;
+  var destroyProgram: DestroyProgramFunction;
 }
 
 export {};

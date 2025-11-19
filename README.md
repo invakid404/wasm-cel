@@ -153,9 +153,127 @@ Evaluates the compiled program with the given variables.
 const result = await program.eval({ x: 5 });
 ```
 
+### `env.destroy(): void`
+
+Destroys the environment and marks it as destroyed. After calling `destroy()`, you cannot create new programs or typecheck expressions with this environment. However, programs that were already created from this environment will continue to work until they are destroyed themselves.
+
+**Note:** This method is idempotent - calling it multiple times is safe and has no effect after the first call.
+
+**Example:**
+
+```typescript
+const env = await Env.new();
+const program = await env.compile("10 + 20");
+
+// Destroy the environment
+env.destroy();
+
+// This will throw an error
+await expect(env.compile("5 + 5")).rejects.toThrow();
+
+// But existing programs still work
+const result = await program.eval();
+console.log(result); // 30
+```
+
+### `program.destroy(): void`
+
+Destroys the compiled program and frees associated WASM resources. After calling `destroy()`, you cannot evaluate the program anymore.
+
+**Note:** This method is idempotent - calling it multiple times is safe and has no effect after the first call.
+
+**Example:**
+
+```typescript
+const program = await env.compile("10 + 20");
+program.destroy();
+
+// This will throw an error
+await expect(program.eval()).rejects.toThrow();
+```
+
 ### `init(): Promise<void>`
 
 Initializes the WASM module. This is called automatically by the API functions, but can be called manually to pre-initialize the module.
+
+## Memory Management
+
+This library implements comprehensive memory leak prevention mechanisms to ensure WASM resources are properly cleaned up.
+
+### Explicit Cleanup
+
+Both `Env` and `Program` instances provide a `destroy()` method for explicit cleanup:
+
+```typescript
+const env = await Env.new();
+const program = await env.compile("x + y");
+
+// When done, explicitly destroy resources
+program.destroy();
+env.destroy();
+```
+
+### Automatic Cleanup with FinalizationRegistry
+
+The library uses JavaScript's `FinalizationRegistry` (available in Node.js 14+) to automatically clean up resources when objects are garbage collected. This provides a **best-effort** safety net in case you forget to call `destroy()`.
+
+**Important limitations:**
+
+- FinalizationRegistry callbacks are not guaranteed to run immediately or at all
+- They may run long after an object is garbage collected, or not at all in some cases
+- The timing is non-deterministic and depends on the JavaScript engine's garbage collector
+
+**Best practice:** Always explicitly call `destroy()` when you're done with an environment or program. Don't rely solely on automatic cleanup.
+
+### Reference Counting for Custom Functions
+
+The library uses reference counting to manage custom JavaScript functions registered with environments:
+
+1. **When a program is created** from an environment, reference counts are incremented for all custom functions in that environment
+2. **When a program is destroyed**, reference counts are decremented
+3. **Functions are only unregistered** when their reference count reaches zero
+
+This means:
+
+- **Programs continue to work** even after their parent environment is destroyed
+- **Functions remain available** as long as any program that might use them still exists
+- **Functions are automatically cleaned up** when all programs using them are destroyed
+
+**Example:**
+
+```typescript
+const add = celFunction("add")
+  .param("a", "int")
+  .param("b", "int")
+  .returns("int")
+  .implement((a, b) => a + b);
+
+const env = await Env.new({ functions: [add] });
+const program = await env.compile("add(10, 20)");
+
+// Destroy the environment - functions are still available
+env.destroy();
+
+// Program still works because functions are reference counted
+const result = await program.eval();
+console.log(result); // 30
+
+// When program is destroyed, functions are cleaned up
+program.destroy();
+```
+
+### Environment Lifecycle
+
+- **Destroyed environments** cannot create new programs or typecheck expressions
+- **Existing programs** from a destroyed environment continue to work
+- **The environment entry** is cleaned up when all programs using it are destroyed
+
+### Best Practices
+
+1. **Always call `destroy()`** when you're done with environments and programs
+2. **Destroy programs before environments** if you want to ensure functions are cleaned up immediately
+3. **Don't rely on automatic cleanup** - it's a safety net, not a guarantee
+4. **In long-running applications**, explicitly manage the lifecycle of resources to prevent memory leaks
 
 ## TypeScript Support
 
