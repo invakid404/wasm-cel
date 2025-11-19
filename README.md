@@ -1,6 +1,7 @@
 # wasm-cel
 
-WebAssembly module for evaluating CEL (Common Expression Language) expressions in Node.js.
+WebAssembly module for evaluating CEL (Common Expression Language) expressions
+in Node.js.
 
 ## Installation
 
@@ -14,7 +15,8 @@ yarn add wasm-cel
 
 ## Usage
 
-The library follows the CEL pattern: create an environment, compile an expression, and then evaluate it:
+The library follows the CEL pattern: create an environment, compile an
+expression, and then evaluate it:
 
 ```typescript
 import { Env } from "wasm-cel";
@@ -52,13 +54,16 @@ console.log(result3); // "Alice is 30 years old"
 
 ### `Env.new(options?: EnvOptions): Promise<Env>`
 
-Creates a new CEL environment with variable declarations and optional function definitions.
+Creates a new CEL environment with variable declarations and optional function
+definitions.
 
 **Parameters:**
 
 - `options` (EnvOptions, optional): Options including:
-  - `variables` (VariableDeclaration[], optional): Array of variable declarations with name and type
-  - `functions` (CELFunctionDefinition[], optional): Array of custom function definitions
+  - `variables` (VariableDeclaration[], optional): Array of variable
+    declarations with name and type
+  - `functions` (CELFunctionDefinition[], optional): Array of custom function
+    definitions
 
 **Returns:**
 
@@ -95,7 +100,9 @@ const program = await env.compile("x + 10");
 
 ### `env.typecheck(expr: string): Promise<TypeCheckResult>`
 
-Typechecks a CEL expression in the environment without compiling it. This is useful for validating expressions and getting type information before compilation.
+Typechecks a CEL expression in the environment without compiling it. This is
+useful for validating expressions and getting type information before
+compilation.
 
 **Parameters:**
 
@@ -103,7 +110,8 @@ Typechecks a CEL expression in the environment without compiling it. This is use
 
 **Returns:**
 
-- `Promise<TypeCheckResult>`: A promise that resolves to type information with a `type` property containing the inferred type
+- `Promise<TypeCheckResult>`: A promise that resolves to type information with a
+  `type` property containing the inferred type
 
 **Example:**
 
@@ -141,7 +149,8 @@ Evaluates the compiled program with the given variables.
 
 **Parameters:**
 
-- `vars` (Record<string, any> | null, optional): Variables to use in the evaluation. Defaults to `null`.
+- `vars` (Record<string, any> | null, optional): Variables to use in the
+  evaluation. Defaults to `null`.
 
 **Returns:**
 
@@ -155,9 +164,13 @@ const result = await program.eval({ x: 5 });
 
 ### `env.destroy(): void`
 
-Destroys the environment and marks it as destroyed. After calling `destroy()`, you cannot create new programs or typecheck expressions with this environment. However, programs that were already created from this environment will continue to work until they are destroyed themselves.
+Destroys the environment and marks it as destroyed. After calling `destroy()`,
+you cannot create new programs or typecheck expressions with this environment.
+However, programs that were already created from this environment will continue
+to work until they are destroyed themselves.
 
-**Note:** This method is idempotent - calling it multiple times is safe and has no effect after the first call.
+**Note:** This method is idempotent - calling it multiple times is safe and has
+no effect after the first call.
 
 **Example:**
 
@@ -178,9 +191,11 @@ console.log(result); // 30
 
 ### `program.destroy(): void`
 
-Destroys the compiled program and frees associated WASM resources. After calling `destroy()`, you cannot evaluate the program anymore.
+Destroys the compiled program and frees associated WASM resources. After calling
+`destroy()`, you cannot evaluate the program anymore.
 
-**Note:** This method is idempotent - calling it multiple times is safe and has no effect after the first call.
+**Note:** This method is idempotent - calling it multiple times is safe and has
+no effect after the first call.
 
 **Example:**
 
@@ -194,15 +209,18 @@ await expect(program.eval()).rejects.toThrow();
 
 ### `init(): Promise<void>`
 
-Initializes the WASM module. This is called automatically by the API functions, but can be called manually to pre-initialize the module.
+Initializes the WASM module. This is called automatically by the API functions,
+but can be called manually to pre-initialize the module.
 
 ## Memory Management
 
-This library implements comprehensive memory leak prevention mechanisms to ensure WASM resources are properly cleaned up.
+This library implements comprehensive memory leak prevention mechanisms to
+ensure WASM resources are properly cleaned up.
 
 ### Explicit Cleanup
 
-Both `Env` and `Program` instances provide a `destroy()` method for explicit cleanup:
+Both `Env` and `Program` instances provide a `destroy()` method for explicit
+cleanup:
 
 ```typescript
 const env = await Env.new();
@@ -215,29 +233,38 @@ env.destroy();
 
 ### Automatic Cleanup with FinalizationRegistry
 
-The library uses JavaScript's `FinalizationRegistry` (available in Node.js 14+) to automatically clean up resources when objects are garbage collected. This provides a **best-effort** safety net in case you forget to call `destroy()`.
+The library uses JavaScript's `FinalizationRegistry` (available in Node.js 14+)
+to automatically clean up resources when objects are garbage collected. This
+provides a **best-effort** safety net in case you forget to call `destroy()`.
 
 **Important limitations:**
 
 - FinalizationRegistry callbacks are not guaranteed to run immediately or at all
-- They may run long after an object is garbage collected, or not at all in some cases
-- The timing is non-deterministic and depends on the JavaScript engine's garbage collector
+- They may run long after an object is garbage collected, or not at all in some
+  cases
+- The timing is non-deterministic and depends on the JavaScript engine's garbage
+  collector
 
-**Best practice:** Always explicitly call `destroy()` when you're done with an environment or program. Don't rely solely on automatic cleanup.
+**Best practice:** Always explicitly call `destroy()` when you're done with an
+environment or program. Don't rely solely on automatic cleanup.
 
 ### Reference Counting for Custom Functions
 
-The library uses reference counting to manage custom JavaScript functions registered with environments:
+The library uses reference counting to manage custom JavaScript functions
+registered with environments:
 
-1. **When a program is created** from an environment, reference counts are incremented for all custom functions in that environment
+1. **When a program is created** from an environment, reference counts are
+   incremented for all custom functions in that environment
 2. **When a program is destroyed**, reference counts are decremented
 3. **Functions are only unregistered** when their reference count reaches zero
 
 This means:
 
 - **Programs continue to work** even after their parent environment is destroyed
-- **Functions remain available** as long as any program that might use them still exists
-- **Functions are automatically cleaned up** when all programs using them are destroyed
+- **Functions remain available** as long as any program that might use them
+  still exists
+- **Functions are automatically cleaned up** when all programs using them are
+  destroyed
 
 **Example:**
 
@@ -266,14 +293,17 @@ program.destroy();
 
 - **Destroyed environments** cannot create new programs or typecheck expressions
 - **Existing programs** from a destroyed environment continue to work
-- **The environment entry** is cleaned up when all programs using it are destroyed
+- **The environment entry** is cleaned up when all programs using it are
+  destroyed
 
 ### Best Practices
 
 1. **Always call `destroy()`** when you're done with environments and programs
-2. **Destroy programs before environments** if you want to ensure functions are cleaned up immediately
+2. **Destroy programs before environments** if you want to ensure functions are
+   cleaned up immediately
 3. **Don't rely on automatic cleanup** - it's a safety net, not a guarantee
-4. **In long-running applications**, explicitly manage the lifecycle of resources to prevent memory leaks
+4. **In long-running applications**, explicitly manage the lifecycle of
+   resources to prevent memory leaks
 
 ## TypeScript Support
 
@@ -293,7 +323,7 @@ import {
 
 To build the package from source, you'll need:
 
-- Go 1.16 or later
+- Go 1.21 or later
 - Node.js 18 or later
 - pnpm (or npm/yarn)
 
@@ -317,7 +347,10 @@ pnpm run example
 
 ## Package Type
 
-This is an **ESM-only** package. It uses modern ES modules and NodeNext module resolution. If you're using TypeScript, make sure your `tsconfig.json` has `"module": "NodeNext"` or `"moduleResolution": "NodeNext"` for proper type resolution.
+This is an **ESM-only** package. It uses modern ES modules and NodeNext module
+resolution. If you're using TypeScript, make sure your `tsconfig.json` has
+`"module": "NodeNext"` or `"moduleResolution": "NodeNext"` for proper type
+resolution.
 
 ## License
 
