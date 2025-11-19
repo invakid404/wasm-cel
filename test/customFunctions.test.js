@@ -1,4 +1,4 @@
-import { evaluateCEL, celFunction, listType } from "../dist/index.js";
+import { Env, celFunction, listType } from "../dist/index.js";
 
 describe("Custom Functions", () => {
   describe("Basic function definition and usage", () => {
@@ -9,10 +9,12 @@ describe("Custom Functions", () => {
         .returns("int")
         .implement((a, b) => a + b);
 
-      const result = await evaluateCEL("add(10, 20)", {
+      const env = await Env.new({
         functions: [add],
       });
-      expect(result.result).toBe(30);
+      const program = await env.compile("add(10, 20)");
+      const result = await program.eval();
+      expect(result).toBe(30);
     });
 
     test("should define and use a multiplication function", async () => {
@@ -22,10 +24,12 @@ describe("Custom Functions", () => {
         .returns("int")
         .implement((a, b) => a * b);
 
-      const result = await evaluateCEL("multiply(5, 7)", {
+      const env = await Env.new({
         functions: [multiply],
       });
-      expect(result.result).toBe(35);
+      const program = await env.compile("multiply(5, 7)");
+      const result = await program.eval();
+      expect(result).toBe(35);
     });
 
     test("should use function with variables", async () => {
@@ -35,11 +39,16 @@ describe("Custom Functions", () => {
         .returns("double")
         .implement((a, b) => Number(a) - Number(b));
 
-      const result = await evaluateCEL("subtract(x, y)", {
-        vars: { x: 100, y: 30 },
+      const env = await Env.new({
+        variables: [
+          { name: "x", type: "double" },
+          { name: "y", type: "double" },
+        ],
         functions: [subtract],
       });
-      expect(result.result).toBe(70);
+      const program = await env.compile("subtract(x, y)");
+      const result = await program.eval({ x: 100, y: 30 });
+      expect(result).toBe(70);
     });
   });
 
@@ -50,10 +59,12 @@ describe("Custom Functions", () => {
         .returns("string")
         .implement((str) => String(str).toUpperCase());
 
-      const result = await evaluateCEL('uppercase("hello world")', {
+      const env = await Env.new({
         functions: [uppercase],
       });
-      expect(result.result).toBe("HELLO WORLD");
+      const program = await env.compile('uppercase("hello world")');
+      const result = await program.eval();
+      expect(result).toBe("HELLO WORLD");
     });
 
     test("should define and use lowercase function", async () => {
@@ -62,10 +73,12 @@ describe("Custom Functions", () => {
         .returns("string")
         .implement((str) => String(str).toLowerCase());
 
-      const result = await evaluateCEL('lowercase("HELLO WORLD")', {
+      const env = await Env.new({
         functions: [lowercase],
       });
-      expect(result.result).toBe("hello world");
+      const program = await env.compile('lowercase("HELLO WORLD")');
+      const result = await program.eval();
+      expect(result).toBe("hello world");
     });
 
     test("should define and use string concatenation function", async () => {
@@ -75,10 +88,12 @@ describe("Custom Functions", () => {
         .returns("string")
         .implement((a, b) => String(a) + String(b));
 
-      const result = await evaluateCEL('concat("foo", "bar")', {
+      const env = await Env.new({
         functions: [concat],
       });
-      expect(result.result).toBe("foobar");
+      const program = await env.compile('concat("foo", "bar")');
+      const result = await program.eval();
+      expect(result).toBe("foobar");
     });
 
     test("should use string function with variables", async () => {
@@ -90,11 +105,16 @@ describe("Custom Functions", () => {
           return `Hello, ${name}! You are ${age} years old.`;
         });
 
-      const result = await evaluateCEL("greet(name, age)", {
-        vars: { name: "Alice", age: 30 },
+      const env = await Env.new({
+        variables: [
+          { name: "name", type: "string" },
+          { name: "age", type: "double" },
+        ],
         functions: [greet],
       });
-      expect(result.result).toBe("Hello, Alice! You are 30 years old.");
+      const program = await env.compile("greet(name, age)");
+      const result = await program.eval({ name: "Alice", age: 30 });
+      expect(result).toBe("Hello, Alice! You are 30 years old.");
     });
   });
 
@@ -105,15 +125,17 @@ describe("Custom Functions", () => {
         .returns("bool")
         .implement((n) => Number(n) % 2 === 0);
 
-      const result1 = await evaluateCEL("isEven(42)", {
+      const env = await Env.new({
         functions: [isEven],
       });
-      expect(result1.result).toBe(true);
 
-      const result2 = await evaluateCEL("isEven(43)", {
-        functions: [isEven],
-      });
-      expect(result2.result).toBe(false);
+      const program1 = await env.compile("isEven(42)");
+      const result1 = await program1.eval();
+      expect(result1).toBe(true);
+
+      const program2 = await env.compile("isEven(43)");
+      const result2 = await program2.eval();
+      expect(result2).toBe(false);
     });
 
     test("should define and use comparison functions", async () => {
@@ -129,15 +151,17 @@ describe("Custom Functions", () => {
         .returns("int")
         .implement((a, b) => Math.min(Number(a), Number(b)));
 
-      const result1 = await evaluateCEL("max(10, 20)", {
-        functions: [max],
+      const env = await Env.new({
+        functions: [max, min],
       });
-      expect(result1.result).toBe(20);
 
-      const result2 = await evaluateCEL("min(10, 20)", {
-        functions: [min],
-      });
-      expect(result2.result).toBe(10);
+      const program1 = await env.compile("max(10, 20)");
+      const result1 = await program1.eval();
+      expect(result1).toBe(20);
+
+      const program2 = await env.compile("min(10, 20)");
+      const result2 = await program2.eval();
+      expect(result2).toBe(10);
     });
   });
 
@@ -153,10 +177,12 @@ describe("Custom Functions", () => {
           return numbers.reduce((acc, n) => acc + Number(n), 0);
         });
 
-      const result = await evaluateCEL("sum([1, 2, 3, 4, 5])", {
+      const env = await Env.new({
         functions: [sum],
       });
-      expect(result.result).toBe(15);
+      const program = await env.compile("sum([1, 2, 3, 4, 5])");
+      const result = await program.eval();
+      expect(result).toBe(15);
     });
 
     test("should define and use average function", async () => {
@@ -171,10 +197,12 @@ describe("Custom Functions", () => {
           return sum / numbers.length;
         });
 
-      const result = await evaluateCEL("average([10.0, 20.0, 30.0])", {
+      const env = await Env.new({
         functions: [average],
       });
-      expect(result.result).toBeCloseTo(20.0);
+      const program = await env.compile("average([10.0, 20.0, 30.0])");
+      const result = await program.eval();
+      expect(result).toBeCloseTo(20.0);
     });
 
     test("should define and use contains function", async () => {
@@ -189,21 +217,21 @@ describe("Custom Functions", () => {
           return list.includes(String(item));
         });
 
-      const result1 = await evaluateCEL(
-        'contains(["apple", "banana", "cherry"], "banana")',
-        {
-          functions: [contains],
-        },
-      );
-      expect(result1.result).toBe(true);
+      const env = await Env.new({
+        functions: [contains],
+      });
 
-      const result2 = await evaluateCEL(
-        'contains(["apple", "banana", "cherry"], "grape")',
-        {
-          functions: [contains],
-        },
+      const program1 = await env.compile(
+        'contains(["apple", "banana", "cherry"], "banana")',
       );
-      expect(result2.result).toBe(false);
+      const result1 = await program1.eval();
+      expect(result1).toBe(true);
+
+      const program2 = await env.compile(
+        'contains(["apple", "banana", "cherry"], "grape")',
+      );
+      const result2 = await program2.eval();
+      expect(result2).toBe(false);
     });
   });
 
@@ -221,13 +249,14 @@ describe("Custom Functions", () => {
         .returns("double")
         .implement((a, b) => Number(a) * Number(b));
 
-      const result = await evaluateCEL(
+      const env = await Env.new({
+        functions: [add, multiply],
+      });
+      const program = await env.compile(
         "multiply(add(2.0, 3.0), add(4.0, 1.0))",
-        {
-          functions: [add, multiply],
-        },
       );
-      expect(result.result).toBe(25); // (2+3) * (4+1) = 5 * 5 = 25
+      const result = await program.eval();
+      expect(result).toBe(25); // (2+3) * (4+1) = 5 * 5 = 25
     });
 
     test("should use nested function calls", async () => {
@@ -243,10 +272,12 @@ describe("Custom Functions", () => {
         .returns("double")
         .implement((a, b) => Math.min(Number(a), Number(b)));
 
-      const result = await evaluateCEL("max(min(10.0, 5.0), 7.0)", {
+      const env = await Env.new({
         functions: [max, min],
       });
-      expect(result.result).toBe(7); // max(min(10, 5), 7) = max(5, 7) = 7
+      const program = await env.compile("max(min(10.0, 5.0), 7.0)");
+      const result = await program.eval();
+      expect(result).toBe(7); // max(min(10, 5), 7) = max(5, 7) = 7
     });
   });
 
@@ -257,10 +288,12 @@ describe("Custom Functions", () => {
         .returns("int")
         .implement((n) => Number(n) * Number(n));
 
-      const result = await evaluateCEL("square(5) + square(3)", {
+      const env = await Env.new({
         functions: [square],
       });
-      expect(result.result).toBe(34); // 25 + 9 = 34
+      const program = await env.compile("square(5) + square(3)");
+      const result = await program.eval();
+      expect(result).toBe(34); // 25 + 9 = 34
     });
 
     test("should use custom functions with ternary expressions", async () => {
@@ -269,11 +302,13 @@ describe("Custom Functions", () => {
         .returns("double")
         .implement((n) => Math.abs(Number(n)));
 
-      const result = await evaluateCEL('abs(x) > 0.0 ? "positive" : "zero"', {
-        vars: { x: -5.0 },
+      const env = await Env.new({
+        variables: [{ name: "x", type: "double" }],
         functions: [abs],
       });
-      expect(result.result).toBe("positive");
+      const program = await env.compile('abs(x) > 0.0 ? "positive" : "zero"');
+      const result = await program.eval({ x: -5.0 });
+      expect(result).toBe("positive");
     });
 
     test("should use custom functions with list operations", async () => {
@@ -282,12 +317,12 @@ describe("Custom Functions", () => {
         .returns("int")
         .implement((n) => Number(n) * 2);
 
-      // Note: This would require list mapping which CEL supports
-      // For now, we test with a single value
-      const result = await evaluateCEL("doubleValue(21)", {
+      const env = await Env.new({
         functions: [doubleValue],
       });
-      expect(result.result).toBe(42);
+      const program = await env.compile("doubleValue(21)");
+      const result = await program.eval();
+      expect(result).toBe(42);
     });
   });
 
@@ -332,10 +367,12 @@ describe("Custom Functions", () => {
             : 0;
         });
 
-      const result = await evaluateCEL("sum([1, 2, 3])", {
+      const env = await Env.new({
         functions: [sum],
       });
-      expect(result.result).toBe(6);
+      const program = await env.compile("sum([1, 2, 3])");
+      const result = await program.eval();
+      expect(result).toBe(6);
     });
 
     test("should use nested list types", async () => {
@@ -349,28 +386,13 @@ describe("Custom Functions", () => {
           return lists.flat();
         });
 
-      const result = await evaluateCEL("flatten([[1, 2], [3, 4]])", {
+      const env = await Env.new({
         functions: [flatten],
       });
-      expect(Array.isArray(result.result)).toBe(true);
-      expect(result.result).toEqual([1, 2, 3, 4]);
-    });
-  });
-
-  describe("Backward compatibility", () => {
-    test("should work without custom functions (backward compatible)", async () => {
-      const result = await evaluateCEL("10 + 20");
-      expect(result.result).toBe(30);
-    });
-
-    test("should work with variables only (backward compatible)", async () => {
-      const result = await evaluateCEL("x + y", { x: 10, y: 20 });
-      expect(result.result).toBe(30);
-    });
-
-    test("should work with old API style (variables as second arg)", async () => {
-      const result = await evaluateCEL("x + y", { x: 5, y: 15 });
-      expect(result.result).toBe(20);
+      const program = await env.compile("flatten([[1, 2], [3, 4]])");
+      const result = await program.eval();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toEqual([1, 2, 3, 4]);
     });
   });
 
@@ -383,15 +405,16 @@ describe("Custom Functions", () => {
           throw new Error("Test error");
         });
 
-      await expect(
-        evaluateCEL("errorFunc(1)", {
-          functions: [errorFunc],
-        }),
-      ).rejects.toThrow();
+      const env = await Env.new({
+        functions: [errorFunc],
+      });
+      const program = await env.compile("errorFunc(1)");
+      await expect(program.eval()).rejects.toThrow();
     });
 
     test("should handle undefined function in expression", async () => {
-      await expect(evaluateCEL("undefinedFunc(1)")).rejects.toThrow();
+      const env = await Env.new();
+      await expect(env.compile("undefinedFunc(1)")).rejects.toThrow();
     });
   });
 });

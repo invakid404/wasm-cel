@@ -71,11 +71,21 @@ export interface CELFunctionDefinition {
 }
 
 /**
- * Options for evaluating a CEL expression
+ * Variable declaration for an environment
  */
-export interface EvaluateOptions {
-  /** Variables to use in the expression */
-  vars?: Record<string, any> | null;
+export interface VariableDeclaration {
+  /** Variable name */
+  name: string;
+  /** Variable type */
+  type: CELTypeDef;
+}
+
+/**
+ * Options for creating a CEL environment
+ */
+export interface EnvOptions {
+  /** Variable declarations (name and type) */
+  variables?: VariableDeclaration[];
   /** Custom functions to register */
   functions?: CELFunctionDefinition[];
 }

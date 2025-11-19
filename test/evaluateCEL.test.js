@@ -1,166 +1,308 @@
-import { evaluateCEL } from '../dist/index.js';
+import { Env } from '../dist/index.js';
 
-describe('evaluateCEL', () => {
+describe('CEL Evaluation', () => {
   describe('Basic arithmetic', () => {
     test('should evaluate simple addition', async () => {
-      const result = await evaluateCEL('10 + 20');
-      expect(result.result).toBe(30);
+      const env = await Env.new();
+      const program = await env.compile('10 + 20');
+      const result = await program.eval();
+      expect(result).toBe(30);
     });
 
     test('should handle operator precedence', async () => {
-      const result = await evaluateCEL('10 + 20 * 2');
-      expect(result.result).toBe(50);
+      const env = await Env.new();
+      const program = await env.compile('10 + 20 * 2');
+      const result = await program.eval();
+      expect(result).toBe(50);
     });
   });
 
   describe('Expressions with variables', () => {
     test('should evaluate expression with variables', async () => {
-      const result = await evaluateCEL('x + y', { x: 10, y: 20 });
-      expect(result.result).toBe(30);
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x + y');
+      const result = await program.eval({ x: 10, y: 20 });
+      expect(result).toBe(30);
+    });
+
+    test('should reuse program with different variables', async () => {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x + y');
+      
+      const result1 = await program.eval({ x: 10, y: 20 });
+      expect(result1).toBe(30);
+
+      const result2 = await program.eval({ x: 5, y: 15 });
+      expect(result2).toBe(20);
+    });
+
+    test('should compile multiple expressions with same env', async () => {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+
+      const program1 = await env.compile('x + y');
+      const program2 = await env.compile('x * y');
+
+      const result1 = await program1.eval({ x: 10, y: 20 });
+      const result2 = await program2.eval({ x: 10, y: 20 });
+
+      expect(result1).toBe(30);
+      expect(result2).toBe(200);
     });
 
     test('should handle missing variables and throw error', async () => {
-      await expect(evaluateCEL('x + y')).rejects.toThrow();
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x + y');
+      await expect(program.eval({ x: 10 })).rejects.toThrow();
     });
   });
 
   describe('String operations', () => {
     test('should concatenate strings with variables', async () => {
-      const result = await evaluateCEL(
-        'name + " is " + string(age) + " years old"',
-        {
-          name: 'Alice',
-          age: 30,
-        },
-      );
-      expect(result.result).toBe('Alice is 30 years old');
+      const env = await Env.new({
+        variables: [
+          { name: 'name', type: 'string' },
+          { name: 'age', type: 'double' }
+        ]
+      });
+      const program = await env.compile('name + " is " + string(age) + " years old"');
+      const result = await program.eval({
+        name: 'Alice',
+        age: 30,
+      });
+      expect(result).toBe('Alice is 30 years old');
     });
   });
 
   describe('Comparison expressions', () => {
     test('should evaluate greater than comparison', async () => {
-      const result = await evaluateCEL('x > y', { x: 10, y: 5 });
-      expect(result.result).toBe(true);
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x > y');
+      const result = await program.eval({ x: 10, y: 5 });
+      expect(result).toBe(true);
     });
 
     test('should evaluate less than comparison', async () => {
-      const result = await evaluateCEL('x < y', { x: 5, y: 10 });
-      expect(result.result).toBe(true);
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x < y');
+      const result = await program.eval({ x: 5, y: 10 });
+      expect(result).toBe(true);
     });
 
     test('should evaluate equality comparison', async () => {
-      const result = await evaluateCEL('x == y', { x: 10, y: 10 });
-      expect(result.result).toBe(true);
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x == y');
+      const result = await program.eval({ x: 10, y: 10 });
+      expect(result).toBe(true);
     });
   });
 
   describe('Ternary expressions', () => {
     test('should return first branch when condition is true', async () => {
-      const result = await evaluateCEL('x > y ? "greater" : "lesser"', {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x > y ? "greater" : "lesser"');
+      const result = await program.eval({
         x: 10,
         y: 5,
       });
-      expect(result.result).toBe('greater');
+      expect(result).toBe('greater');
     });
 
     test('should return second branch when condition is false', async () => {
-      const result = await evaluateCEL('x > y ? "greater" : "lesser"', {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x > y ? "greater" : "lesser"');
+      const result = await program.eval({
         x: 5,
         y: 10,
       });
-      expect(result.result).toBe('lesser');
+      expect(result).toBe('lesser');
     });
   });
 
   describe('List operations', () => {
     test('should get list size', async () => {
-      const result = await evaluateCEL('myList.size()', {
+      const env = await Env.new({
+        variables: [
+          { name: 'myList', type: { kind: 'list', elementType: 'dyn' } }
+        ]
+      });
+      const program = await env.compile('myList.size()');
+      const result = await program.eval({
         myList: [1, 2, 3, 4, 5],
       });
-      expect(result.result).toBe(5);
+      expect(result).toBe(5);
     });
 
     test('should check if list is empty', async () => {
-      const result = await evaluateCEL('myList.size() > 0', {
+      const env = await Env.new({
+        variables: [
+          { name: 'myList', type: { kind: 'list', elementType: 'dyn' } }
+        ]
+      });
+      const program = await env.compile('myList.size() > 0');
+      const result = await program.eval({
         myList: [1, 2, 3],
       });
-      expect(result.result).toBe(true);
+      expect(result).toBe(true);
     });
   });
 
   describe('Map operations', () => {
     test('should access map values by key', async () => {
-      const result = await evaluateCEL('myMap["key"]', {
+      const env = await Env.new({
+        variables: [
+          { name: 'myMap', type: { kind: 'map', keyType: 'string', valueType: 'dyn' } }
+        ]
+      });
+      const program = await env.compile('myMap["key"]');
+      const result = await program.eval({
         myMap: { key: 'value' },
       });
-      expect(result.result).toBe('value');
+      expect(result).toBe('value');
     });
 
     test('should handle nested map access', async () => {
-      const result = await evaluateCEL(
+      const env = await Env.new({
+        variables: [
+          { name: 'user', type: { kind: 'map', keyType: 'string', valueType: 'dyn' } }
+        ]
+      });
+      const program = await env.compile(
         'user["name"] + " has " + string(user["score"]) + " points"',
-        {
-          user: { name: 'Bob', score: 100 },
-        },
       );
-      expect(result.result).toBe('Bob has 100 points');
+      const result = await program.eval({
+        user: { name: 'Bob', score: 100 },
+      });
+      expect(result).toBe('Bob has 100 points');
     });
   });
 
   describe('Boolean logic', () => {
     test('should evaluate AND expressions', async () => {
-      const result = await evaluateCEL('x > 0.0 && y > 0.0', {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x > 0.0 && y > 0.0');
+      const result = await program.eval({
         x: 5,
         y: 10,
       });
-      expect(result.result).toBe(true);
+      expect(result).toBe(true);
     });
 
     test('should evaluate OR expressions', async () => {
-      const result = await evaluateCEL('x > 0.0 || y > 0.0', {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x > 0.0 || y > 0.0');
+      const result = await program.eval({
         x: -5,
         y: 10,
       });
-      expect(result.result).toBe(true);
+      expect(result).toBe(true);
     });
 
     test('should evaluate complex boolean expressions', async () => {
-      const result = await evaluateCEL('(x > 0.0 && y > 0.0) || z > 100.0', {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' },
+          { name: 'z', type: 'double' }
+        ]
+      });
+      const program = await env.compile('(x > 0.0 && y > 0.0) || z > 100.0');
+      const result = await program.eval({
         x: 5,
         y: 10,
         z: 50,
       });
-      expect(result.result).toBe(true);
+      expect(result).toBe(true);
     });
   });
 
   describe('Error handling', () => {
     test('should throw error for invalid expressions', async () => {
-      await expect(evaluateCEL('invalid syntax !!!')).rejects.toThrow();
+      const env = await Env.new();
+      await expect(env.compile('invalid syntax !!!')).rejects.toThrow();
+    });
+
+    test('should throw error for undeclared variables at compile time', async () => {
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' }
+        ]
+      });
+
+      // This should fail at compile time, not evaluation time
+      await expect(env.compile('x + y')).rejects.toThrow();
     });
 
     test('should throw error when required variables are missing', async () => {
-      await expect(evaluateCEL('x + y')).rejects.toThrow();
+      const env = await Env.new({
+        variables: [
+          { name: 'x', type: 'double' },
+          { name: 'y', type: 'double' }
+        ]
+      });
+      const program = await env.compile('x + y');
+      await expect(program.eval({ x: 10 })).rejects.toThrow();
     });
 
     test('should handle null variables object', async () => {
-      // This should work if the expression doesn't require variables
-      const result = await evaluateCEL('10 + 20', null);
-      expect(result.result).toBe(30);
-    });
-  });
-
-  describe('Input validation', () => {
-    test('should throw error for non-string expression', async () => {
-      await expect(evaluateCEL(123)).rejects.toThrow(
-        'First argument must be a string',
-      );
-    });
-
-    test('should throw error for non-object variables', async () => {
-      await expect(evaluateCEL('10 + 20', 'invalid')).rejects.toThrow(
-        'Second argument must be an object (variables map or options) or null',
-      );
+      const env = await Env.new();
+      const program = await env.compile('10 + 20');
+      const result = await program.eval(null);
+      expect(result).toBe(30);
     });
   });
 });

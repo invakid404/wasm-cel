@@ -14,72 +14,102 @@ yarn add wasm-cel
 
 ## Usage
 
+The library follows the CEL pattern: create an environment, compile an expression, and then evaluate it:
+
 ```typescript
-import { evaluateCEL } from 'wasm-cel';
+import { Env } from 'wasm-cel';
 
-// Basic arithmetic
-const result1 = await evaluateCEL('10 + 20 * 2');
-console.log(result1.result); // 50
-
-// Expression with variables
-const result2 = await evaluateCEL('x + y', { x: 10, y: 20 });
-console.log(result2.result); // 30
-
-// String operations
-const result3 = await evaluateCEL(
-  'name + " is " + string(age) + " years old"',
-  { name: 'Alice', age: 30 }
-);
-console.log(result3.result); // "Alice is 30 years old"
-
-// Comparison and ternary
-const result4 = await evaluateCEL('x > y ? "greater" : "lesser"', {
-  x: 10,
-  y: 5
+// Create an environment with variable declarations
+const env = await Env.new({
+  variables: [
+    { name: 'x', type: 'double' },
+    { name: 'y', type: 'double' },
+    { name: 'name', type: 'string' },
+    { name: 'age', type: 'double' }
+  ]
 });
-console.log(result4.result); // "greater"
 
-// List operations
-const result5 = await evaluateCEL('myList.size()', {
-  myList: [1, 2, 3, 4, 5]
-});
-console.log(result5.result); // 5
+// Compile an expression
+const program = await env.compile('x + y');
 
-// Map operations
-const result6 = await evaluateCEL('user["name"]', {
-  user: { name: 'Bob', score: 100 }
-});
-console.log(result6.result); // "Bob"
+// Evaluate with variables
+const result = await program.eval({ x: 10, y: 20 });
+console.log(result); // 30
+
+// You can reuse the same program with different variables
+const result2 = await program.eval({ x: 5, y: 15 });
+console.log(result2); // 20
+
+// Compile and evaluate multiple expressions with the same environment
+const program2 = await env.compile('name + " is " + string(age) + " years old"');
+const result3 = await program2.eval({ name: 'Alice', age: 30 });
+console.log(result3); // "Alice is 30 years old"
 ```
 
 ## API
 
-### `evaluateCEL(expr: string, vars?: Variables): Promise<EvaluateResult>`
+### `Env.new(options?: EnvOptions): Promise<Env>`
 
-Evaluates a CEL expression with optional variables.
+Creates a new CEL environment with variable declarations and optional function definitions.
 
 **Parameters:**
-- `expr` (string): The CEL expression to evaluate
-- `vars` (Variables, optional): Variables to use in the expression. Can be an object or `null`. Defaults to `{}`.
+- `options` (EnvOptions, optional): Options including:
+  - `variables` (VariableDeclaration[], optional): Array of variable declarations with name and type
+  - `functions` (CELFunctionDefinition[], optional): Array of custom function definitions
 
 **Returns:**
-- `Promise<EvaluateResult>`: A promise that resolves to an object with:
-  - `result` (any): The result of the evaluation, or `null` if there was an error
-  - `error` (string | null): Error message if evaluation failed, or `null` if successful
+- `Promise<Env>`: A promise that resolves to a new Env instance
 
-**Throws:**
-- `Error`: If the expression is invalid, evaluation fails, or input validation fails
+**Example:**
+```typescript
+const env = await Env.new({
+  variables: [
+    { name: 'x', type: 'int' },
+    { name: 'y', type: 'string' }
+  ]
+});
+```
+
+### `env.compile(expr: string): Promise<Program>`
+
+Compiles a CEL expression in the environment.
+
+**Parameters:**
+- `expr` (string): The CEL expression to compile
+
+**Returns:**
+- `Promise<Program>`: A promise that resolves to a compiled Program
+
+**Example:**
+```typescript
+const program = await env.compile('x + 10');
+```
+
+### `program.eval(vars?: Record<string, any> | null): Promise<any>`
+
+Evaluates the compiled program with the given variables.
+
+**Parameters:**
+- `vars` (Record<string, any> | null, optional): Variables to use in the evaluation. Defaults to `null`.
+
+**Returns:**
+- `Promise<any>`: A promise that resolves to the evaluation result
+
+**Example:**
+```typescript
+const result = await program.eval({ x: 5 });
+```
 
 ### `init(): Promise<void>`
 
-Initializes the WASM module. This is called automatically by `evaluateCEL`, but can be called manually to pre-initialize the module.
+Initializes the WASM module. This is called automatically by the API functions, but can be called manually to pre-initialize the module.
 
 ## TypeScript Support
 
 This package includes TypeScript type definitions. Import types as needed:
 
 ```typescript
-import { evaluateCEL, EvaluateResult, Variables } from 'wasm-cel';
+import { Env, Program, EnvOptions, VariableDeclaration } from 'wasm-cel';
 ```
 
 ## Building from Source

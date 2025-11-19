@@ -43,14 +43,38 @@ func SetJSFunctionCaller(caller JSFunctionCaller) {
 	jsFunctionCaller = caller
 }
 
-// EvaluateCore evaluates a CEL expression with the given variables and custom functions
-// This is the core evaluation logic without WASM-specific code
-func EvaluateCore(exprStr string, vars map[string]interface{}, funcDefs []FunctionDef) map[string]interface{} {
-	// Add variable declarations based on provided vars
-	var varDecls []*exprpb.Decl
-	for name, val := range vars {
-		celType := inferDeclType(val)
-		varDecls = append(varDecls, decls.NewVar(name, celType))
+// EnvState holds a CEL environment
+type EnvState struct {
+	env *cel.Env
+}
+
+// ProgramState holds a compiled CEL program
+type ProgramState struct {
+	prg cel.Program
+}
+
+// Global registries for environments and programs
+var (
+	envs     = make(map[string]*EnvState)
+	programs = make(map[string]*ProgramState)
+	envIDCounter int64
+	programIDCounter int64
+)
+
+// VarDecl represents a variable declaration with a name and type
+type VarDecl struct {
+	Name string      `json:"name"`
+	Type interface{} `json:"type"` // Can be string or map[string]interface{}
+}
+
+// CreateEnv creates a new CEL environment with variable declarations and function definitions
+// Returns an environment ID that can be used for compilation
+func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{} {
+	// Convert variable declarations to CEL declarations
+	var celVarDecls []*exprpb.Decl
+	for _, varDecl := range varDecls {
+		celType := parseTypeDef(varDecl.Type)
+		celVarDecls = append(celVarDecls, decls.NewVar(varDecl.Name, celType))
 	}
 
 	// Convert function definitions to CEL function declarations and implementations
@@ -126,8 +150,8 @@ func EvaluateCore(exprStr string, vars map[string]interface{}, funcDefs []Functi
 	var env *cel.Env
 	var err error
 	opts := []cel.EnvOption{}
-	if len(varDecls) > 0 {
-		opts = append(opts, cel.Declarations(varDecls...))
+	if len(celVarDecls) > 0 {
+		opts = append(opts, cel.Declarations(celVarDecls...))
 	}
 	if len(funcDecls) > 0 {
 		opts = append(opts, cel.Declarations(funcDecls...))
@@ -147,8 +171,29 @@ func EvaluateCore(exprStr string, vars map[string]interface{}, funcDefs []Functi
 		}
 	}
 
+	// Generate a unique environment ID
+	envIDCounter++
+	envID := fmt.Sprintf("env_%d", envIDCounter)
+	envs[envID] = &EnvState{env: env}
+
+	return map[string]interface{}{
+		"envID": envID,
+		"error": nil,
+	}
+}
+
+// Compile compiles a CEL expression using the specified environment
+// Returns a program ID that can be used for evaluation
+func Compile(envID string, exprStr string) map[string]interface{} {
+	envState, ok := envs[envID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
 	// Parse and compile the expression
-	ast, issues := env.Compile(exprStr)
+	ast, issues := envState.env.Compile(exprStr)
 	if issues != nil && issues.Err() != nil {
 		return map[string]interface{}{
 			"error": fmt.Sprintf("compilation error: %v", issues.Err()),
@@ -163,15 +208,35 @@ func EvaluateCore(exprStr string, vars map[string]interface{}, funcDefs []Functi
 	}
 
 	// Create program
-	prg, err := env.Program(ast)
+	prg, err := envState.env.Program(ast)
 	if err != nil {
 		return map[string]interface{}{
 			"error": fmt.Sprintf("failed to create program: %v", err),
 		}
 	}
 
+	// Generate a unique program ID
+	programIDCounter++
+	programID := fmt.Sprintf("prg_%d", programIDCounter)
+	programs[programID] = &ProgramState{prg: prg}
+
+	return map[string]interface{}{
+		"programID": programID,
+		"error":     nil,
+	}
+}
+
+// Eval evaluates a compiled program with the given variables
+func Eval(programID string, vars map[string]interface{}) map[string]interface{} {
+	programState, ok := programs[programID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("program not found: %s", programID),
+		}
+	}
+
 	// Evaluate the program with variables
-	out, _, err := prg.Eval(map[string]interface{}(vars))
+	out, _, err := programState.prg.Eval(vars)
 	if err != nil {
 		return map[string]interface{}{
 			"error": fmt.Sprintf("evaluation error: %v", err),
@@ -184,28 +249,6 @@ func EvaluateCore(exprStr string, vars map[string]interface{}, funcDefs []Functi
 	return map[string]interface{}{
 		"result": result,
 		"error":  nil,
-	}
-}
-
-// inferDeclType infers the CEL declaration type from a Go value
-func inferDeclType(val interface{}) *exprpb.Type {
-	switch val.(type) {
-	case bool:
-		return decls.Bool
-	case int, int8, int16, int32, int64:
-		return decls.Int
-	case uint, uint8, uint16, uint32, uint64:
-		return decls.Int
-	case float32, float64:
-		return decls.Double
-	case string:
-		return decls.String
-	case []interface{}:
-		return decls.NewListType(decls.Dyn)
-	case map[string]interface{}:
-		return decls.NewMapType(decls.String, decls.Dyn)
-	default:
-		return decls.Dyn
 	}
 }
 

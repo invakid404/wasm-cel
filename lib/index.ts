@@ -3,11 +3,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
-import type {
-  CELFunctionDefinition,
-  CELTypeDef,
-  EvaluateOptions,
-} from "./types.js";
+import type { CELFunctionDefinition, CELTypeDef, EnvOptions } from "./types.js";
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -87,21 +83,6 @@ export async function init(): Promise<void> {
 }
 
 /**
- * Result of a CEL expression evaluation
- */
-export interface EvaluateResult {
-  /** The result of the evaluation, or null if there was an error */
-  result: any;
-  /** Error message if evaluation failed, or null if successful */
-  error: string | null;
-}
-
-/**
- * Variables to use in the CEL expression
- */
-export type Variables = Record<string, any> | null;
-
-/**
  * Serialize a CEL type definition to a format that can be sent to Go
  */
 function serializeTypeDef(type: CELTypeDef): any {
@@ -173,97 +154,153 @@ function serializeFunctionDefs(functions: CELFunctionDefinition[]): Array<{
 }
 
 /**
- * Evaluate a CEL expression with variables and optional custom functions
- * @param expr - The CEL expression to evaluate
- * @param options - Options including variables and custom functions
- * @returns Promise resolving to the evaluation result
- * @throws Error if the expression is invalid or evaluation fails
- *
- * @example
- * ```typescript
- * const result = await evaluateCEL("add(1, 2)", {
- *   vars: {},
- *   functions: [
- *     celFunction("add")
- *       .param("a", "int")
- *       .param("b", "int")
- *       .returns("int")
- *       .implement((a, b) => a + b)
- *   ]
- * });
- * ```
+ * A compiled CEL program that can be evaluated with variables
  */
-export async function evaluateCEL(
-  expr: string,
-  options?: EvaluateOptions | Variables,
-): Promise<EvaluateResult> {
-  // Ensure WASM is initialized
-  await init();
+export class Program {
+  private programID: string;
 
-  if (typeof expr !== "string") {
-    throw new Error("First argument must be a string (CEL expression)");
+  constructor(programID: string) {
+    this.programID = programID;
   }
 
-  // Handle backward compatibility: if second arg is an object but not EvaluateOptions, treat as vars
-  let vars: Variables = null;
-  let functions: CELFunctionDefinition[] | undefined;
+  /**
+   * Evaluate the compiled program with the given variables
+   * @param vars - Variables to use in the evaluation
+   * @returns Promise resolving to the evaluation result
+   * @throws Error if evaluation fails
+   */
+  async eval(vars: Record<string, any> | null = null): Promise<any> {
+    await init();
 
-  if (options !== undefined && options !== null) {
-    if (typeof options !== "object" || Array.isArray(options)) {
-      throw new Error(
-        "Second argument must be an object (variables map or options) or null",
-      );
-    }
+    return new Promise<any>((resolve, reject) => {
+      try {
+        const globalObj =
+          typeof globalThis !== "undefined" ? globalThis : global;
+        const result = globalObj.evalProgram(this.programID, vars || {});
 
-    // Check if it's EvaluateOptions by looking for 'vars' or 'functions' keys
-    if ("vars" in options || "functions" in options) {
-      // It's EvaluateOptions
-      const opts = options as EvaluateOptions;
-      vars = opts.vars ?? null;
-      functions = opts.functions;
-    } else {
-      // It's Variables (backward compatibility)
-      vars = options as Variables;
-    }
-  }
-
-  if (vars !== null && typeof vars !== "object") {
-    throw new Error("Variables must be an object (variables map) or null");
-  }
-
-  // Serialize function definitions if provided
-  let serializedFuncDefs: any = null;
-  if (functions && functions.length > 0) {
-    serializedFuncDefs = serializeFunctionDefs(functions);
-  }
-
-  return new Promise<EvaluateResult>((resolve, reject) => {
-    try {
-      // Call the global evaluateCEL function exposed by Go
-      // In Node.js ESM, globalThis is the global object
-      const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
-      const result = globalObj.evaluateCEL(
-        expr,
-        vars || {},
-        serializedFuncDefs,
-      );
-
-      // Convert the result to a plain JavaScript object
-      const resultObj: EvaluateResult = {
-        result: result.result !== undefined ? result.result : null,
-        error: result.error || null,
-      };
-
-      if (resultObj.error) {
-        reject(new Error(resultObj.error));
-      } else {
-        resolve(resultObj);
+        if (result.error) {
+          reject(new Error(result.error));
+        } else {
+          resolve(result.result);
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        reject(new Error(`WASM call failed: ${error.message}`));
       }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      reject(new Error(`WASM call failed: ${error.message}`));
+    });
+  }
+}
+
+/**
+ * A CEL environment that holds variable declarations and function definitions
+ */
+export class Env {
+  private envID: string;
+
+  private constructor(envID: string) {
+    this.envID = envID;
+  }
+
+  /**
+   * Create a new CEL environment
+   * @param options - Options including variable declarations and function definitions
+   * @returns Promise resolving to a new Env instance
+   * @throws Error if environment creation fails
+   *
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [
+   *     { name: "x", type: "int" },
+   *     { name: "y", type: "int" }
+   *   ],
+   *   functions: [
+   *     celFunction("add")
+   *       .param("a", "int")
+   *       .param("b", "int")
+   *       .returns("int")
+   *       .implement((a, b) => a + b)
+   *   ]
+   * });
+   * ```
+   */
+  static async new(options?: EnvOptions): Promise<Env> {
+    await init();
+
+    // Serialize variable declarations
+    const varDecls = (options?.variables || []).map((v) => ({
+      name: v.name,
+      type: serializeTypeDef(v.type),
+    }));
+
+    // Serialize function definitions if provided
+    let serializedFuncDefs: any = null;
+    if (options?.functions && options.functions.length > 0) {
+      serializedFuncDefs = serializeFunctionDefs(options.functions);
     }
-  });
+
+    return new Promise<Env>((resolve, reject) => {
+      try {
+        const globalObj =
+          typeof globalThis !== "undefined" ? globalThis : global;
+        const result = globalObj.createEnv(varDecls, serializedFuncDefs);
+
+        if (result.error) {
+          reject(new Error(result.error));
+        } else if (!result.envID) {
+          reject(new Error("Environment creation failed: no envID returned"));
+        } else {
+          resolve(new Env(result.envID));
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        reject(new Error(`WASM call failed: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * Compile a CEL expression in this environment
+   * @param expr - The CEL expression to compile
+   * @returns Promise resolving to a compiled Program
+   * @throws Error if compilation fails
+   *
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [{ name: "x", type: "int" }]
+   * });
+   * const program = await env.compile("x + 10");
+   * const result = await program.eval({ x: 5 });
+   * console.log(result); // 15
+   * ```
+   */
+  async compile(expr: string): Promise<Program> {
+    await init();
+
+    if (typeof expr !== "string") {
+      throw new Error("Expression must be a string");
+    }
+
+    return new Promise<Program>((resolve, reject) => {
+      try {
+        const globalObj =
+          typeof globalThis !== "undefined" ? globalThis : global;
+        const result = globalObj.compileExpr(this.envID, expr);
+
+        if (result.error) {
+          reject(new Error(result.error));
+        } else if (!result.programID) {
+          reject(new Error("Compilation failed: no programID returned"));
+        } else {
+          resolve(new Program(result.programID));
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        reject(new Error(`WASM call failed: ${error.message}`));
+      }
+    });
+  }
 }
 
 // Re-export types and functions
@@ -274,7 +311,8 @@ export type {
   CELMapType,
   CELFunctionDefinition,
   CELFunctionParam,
-  EvaluateOptions,
+  EnvOptions,
+  VariableDeclaration,
 } from "./types.js";
 
 export {

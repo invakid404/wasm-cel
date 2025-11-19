@@ -70,21 +70,66 @@ func registerFunction(this js.Value, args []js.Value) interface{} {
 	}
 }
 
-// evaluateCEL evaluates a CEL expression with the given variables and custom functions
-// It's exposed to JavaScript as a global function
-func evaluateCEL(this js.Value, args []js.Value) interface{} {
-	// Ensure we have at least one argument (the expression)
+// createEnv creates a new CEL environment
+func createEnv(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return map[string]interface{}{
-			"error": "expected at least 1 argument: expression string",
+			"error": "expected at least 1 argument: varDecls array",
 		}
 	}
 
-	exprStr := args[0].String()
+	// Parse variable declarations from first argument
+	var varDecls []cel.VarDecl
+	if !args[0].IsNull() && !args[0].IsUndefined() {
+		varDeclsJSON := js.Global().Get("JSON").Call("stringify", args[0]).String()
+		if err := json.Unmarshal([]byte(varDeclsJSON), &varDecls); err != nil {
+			return map[string]interface{}{
+				"error": fmt.Sprintf("failed to parse variable declarations: %v", err),
+			}
+		}
+	}
 
-	// Parse variables from second argument if provided
-	var vars map[string]interface{}
+	// Parse function definitions from second argument if provided
+	var funcDefs []cel.FunctionDef
 	if len(args) >= 2 && !args[1].IsNull() && !args[1].IsUndefined() {
+		funcDefsJSON := js.Global().Get("JSON").Call("stringify", args[1]).String()
+		if err := json.Unmarshal([]byte(funcDefsJSON), &funcDefs); err != nil {
+			return map[string]interface{}{
+				"error": fmt.Sprintf("failed to parse function definitions: %v", err),
+			}
+		}
+	}
+
+	return cel.CreateEnv(varDecls, funcDefs)
+}
+
+// compileExpr compiles a CEL expression using an environment
+func compileExpr(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return map[string]interface{}{
+			"error": "expected 2 arguments: envID string, expression string",
+		}
+	}
+
+	envID := args[0].String()
+	exprStr := args[1].String()
+
+	return cel.Compile(envID, exprStr)
+}
+
+// evalProgram evaluates a compiled program
+func evalProgram(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return map[string]interface{}{
+			"error": "expected 2 arguments: programID string, vars object",
+		}
+	}
+
+	programID := args[0].String()
+
+	// Parse variables from second argument
+	var vars map[string]interface{}
+	if !args[1].IsNull() && !args[1].IsUndefined() {
 		varsJSON := js.Global().Get("JSON").Call("stringify", args[1]).String()
 		if err := json.Unmarshal([]byte(varsJSON), &vars); err != nil {
 			return map[string]interface{}{
@@ -95,30 +140,20 @@ func evaluateCEL(this js.Value, args []js.Value) interface{} {
 		vars = make(map[string]interface{})
 	}
 
-	// Parse function definitions from third argument if provided
-	var funcDefs []cel.FunctionDef
-	if len(args) >= 3 && !args[2].IsNull() && !args[2].IsUndefined() {
-		funcDefsJSON := js.Global().Get("JSON").Call("stringify", args[2]).String()
-		if err := json.Unmarshal([]byte(funcDefsJSON), &funcDefs); err != nil {
-			return map[string]interface{}{
-				"error": fmt.Sprintf("failed to parse function definitions: %v", err),
-			}
-		}
-	}
-
-	// Use the core evaluation function
-	return cel.EvaluateCore(exprStr, vars, funcDefs)
+	return cel.Eval(programID, vars)
 }
 
 func main() {
 	// Set the JavaScript function caller
 	cel.SetJSFunctionCaller(functionCaller)
 
-	// Register the evaluateCEL function as a global JavaScript function
-	js.Global().Set("evaluateCEL", js.FuncOf(evaluateCEL))
-
 	// Register the registerFunction function for registering JS function implementations
 	js.Global().Set("registerCELFunction", js.FuncOf(registerFunction))
+
+	// Register the API functions
+	js.Global().Set("createEnv", js.FuncOf(createEnv))
+	js.Global().Set("compileExpr", js.FuncOf(compileExpr))
+	js.Global().Set("evalProgram", js.FuncOf(evalProgram))
 
 	// Keep the program running
 	// In WASM, we need to keep the main goroutine alive

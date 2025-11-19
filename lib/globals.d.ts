@@ -3,20 +3,35 @@
  */
 
 // Type aliases for reusable types
-type EvaluateCELFunction = (
-  expr: string,
-  vars: Record<string, any>,
-  funcDefs?: any,
-) => {
-  result?: any;
-  error?: string;
-};
-
 type RegisterCELFunction = (
   implID: string,
   fn: (...args: any[]) => any,
 ) => {
   success?: boolean;
+  error?: string;
+};
+
+type CreateEnvFunction = (
+  varDecls: Array<{ name: string; type: any }>,
+  funcDefs?: any,
+) => {
+  envID?: string;
+  error?: string;
+};
+
+type CompileExprFunction = (
+  envID: string,
+  expr: string,
+) => {
+  programID?: string;
+  error?: string;
+};
+
+type EvalProgramFunction = (
+  programID: string,
+  vars: Record<string, any>,
+) => {
+  result?: any;
   error?: string;
 };
 
@@ -30,13 +45,17 @@ type GoConstructor = {
 declare global {
   interface Window {
     Go: typeof Go;
-    evaluateCEL: EvaluateCELFunction;
     registerCELFunction: RegisterCELFunction;
+    createEnv: CreateEnvFunction;
+    compileExpr: CompileExprFunction;
+    evalProgram: EvalProgramFunction;
   }
 
   var Go: GoConstructor;
-  var evaluateCEL: EvaluateCELFunction;
   var registerCELFunction: RegisterCELFunction;
+  var createEnv: CreateEnvFunction;
+  var compileExpr: CompileExprFunction;
+  var evalProgram: EvalProgramFunction;
 }
 
 export {};
