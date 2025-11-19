@@ -1,6 +1,6 @@
 {
   "name": "wasm-cel",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "WebAssembly module for evaluating CEL (Common Expression Language) expressions in Node.js",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,12 +34,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": [
-    "dist/**/*",
-    "main.wasm",
-    "wasm_exec.cjs",
-    "README.md"
-  ],
+  "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
   "devDependencies": {
     "@types/node": "^20.0.0",
     "jest": "^30.2.0",
