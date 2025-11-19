@@ -54,8 +54,17 @@ type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
 
 /**
  * Builder class for creating type-safe CEL function definitions
+ *
+ * @example
+ * ```typescript
+ * const add = CELFunction.new("add")
+ *   .param("a", "int")
+ *   .param("b", "int")
+ *   .returns("int")
+ *   .implement((a, b) => a + b);
+ * ```
  */
-export class CELFunctionBuilder<
+export class CELFunction<
   Params extends readonly CELFunctionParam[] = readonly [],
   ReturnType extends CELTypeDef = "dyn",
 > {
@@ -64,7 +73,7 @@ export class CELFunctionBuilder<
   private returnType: CELTypeDef;
   private overloads: CELFunctionDefinition[] = [];
 
-  constructor(
+  private constructor(
     name: string,
     params: CELFunctionParam[] = [],
     returnType: CELTypeDef = "dyn",
@@ -80,13 +89,31 @@ export class CELFunctionBuilder<
   }
 
   /**
+   * Create a new CEL function builder
+   * @param name - The name of the function
+   * @returns A builder instance for chaining
+   *
+   * @example
+   * ```typescript
+   * const add = CELFunction.new("add")
+   *   .param("a", "int")
+   *   .param("b", "int")
+   *   .returns("int")
+   *   .implement((a, b) => a + b);
+   * ```
+   */
+  static new(name: string): CELFunction<readonly [], "dyn"> {
+    return new CELFunction(name);
+  }
+
+  /**
    * Add a parameter to the function
    */
   param<T extends CELTypeDef>(
     name: string,
     type: T,
     optional = false,
-  ): CELFunctionBuilder<
+  ): CELFunction<
     [...Params, { name: string; type: T; optional: boolean }],
     ReturnType
   > {
@@ -94,14 +121,14 @@ export class CELFunctionBuilder<
       ...this.params,
       { name, type, optional },
     ] as CELFunctionParam[];
-    return new CELFunctionBuilder(this.name, newParams, this.returnType);
+    return new CELFunction(this.name, newParams, this.returnType);
   }
 
   /**
    * Set the return type of the function
    */
-  returns<T extends CELTypeDef>(type: T): CELFunctionBuilder<Params, T> {
-    return new CELFunctionBuilder(this.name, this.params, type);
+  returns<T extends CELTypeDef>(type: T): CELFunction<Params, T> {
+    return new CELFunction(this.name, this.params, type);
   }
 
   /**
@@ -136,27 +163,6 @@ export class CELFunctionBuilder<
     this.overloads.push(overload);
     return this;
   }
-}
-
-/**
- * Create a new CEL function builder
- * @param name - The name of the function
- * @returns A builder instance for chaining
- *
- * @example
- * ```typescript
- * const add = celFunction("add")
- *   .param("a", "int")
- *   .param("b", "int")
- *   .returns("int")
- *   .implement((a, b) => a + b);
- * // a and b are now typed as number
- * ```
- */
-export function celFunction(
-  name: string,
-): CELFunctionBuilder<readonly [], "dyn"> {
-  return new CELFunctionBuilder(name);
 }
 
 /**

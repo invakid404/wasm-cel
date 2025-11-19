@@ -242,7 +242,7 @@ This means:
 **Example:**
 
 ```typescript
-const add = celFunction("add")
+const add = CELFunction.new("add")
   .param("a", "int")
   .param("b", "int")
   .returns("int")

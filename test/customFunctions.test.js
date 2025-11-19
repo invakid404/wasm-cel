@@ -1,9 +1,9 @@
-import { Env, celFunction, listType } from "../dist/index.js";
+import { Env, CELFunction, listType } from "../dist/index.js";
 
 describe("Custom Functions", () => {
   describe("Basic function definition and usage", () => {
     test("should define and use a simple addition function", async () => {
-      const add = celFunction("add")
+      const add = CELFunction.new("add")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
@@ -18,7 +18,7 @@ describe("Custom Functions", () => {
     });
 
     test("should define and use a multiplication function", async () => {
-      const multiply = celFunction("multiply")
+      const multiply = CELFunction.new("multiply")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
@@ -33,7 +33,7 @@ describe("Custom Functions", () => {
     });
 
     test("should use function with variables", async () => {
-      const subtract = celFunction("subtract")
+      const subtract = CELFunction.new("subtract")
         .param("a", "double")
         .param("b", "double")
         .returns("double")
@@ -54,7 +54,7 @@ describe("Custom Functions", () => {
 
   describe("String functions", () => {
     test("should define and use uppercase function", async () => {
-      const uppercase = celFunction("uppercase")
+      const uppercase = CELFunction.new("uppercase")
         .param("str", "string")
         .returns("string")
         .implement((str) => String(str).toUpperCase());
@@ -68,7 +68,7 @@ describe("Custom Functions", () => {
     });
 
     test("should define and use lowercase function", async () => {
-      const lowercase = celFunction("lowercase")
+      const lowercase = CELFunction.new("lowercase")
         .param("str", "string")
         .returns("string")
         .implement((str) => String(str).toLowerCase());
@@ -82,7 +82,7 @@ describe("Custom Functions", () => {
     });
 
     test("should define and use string concatenation function", async () => {
-      const concat = celFunction("concat")
+      const concat = CELFunction.new("concat")
         .param("a", "string")
         .param("b", "string")
         .returns("string")
@@ -97,7 +97,7 @@ describe("Custom Functions", () => {
     });
 
     test("should use string function with variables", async () => {
-      const greet = celFunction("greet")
+      const greet = CELFunction.new("greet")
         .param("name", "string")
         .param("age", "double")
         .returns("string")
@@ -120,7 +120,7 @@ describe("Custom Functions", () => {
 
   describe("Boolean functions", () => {
     test("should define and use isEven function", async () => {
-      const isEven = celFunction("isEven")
+      const isEven = CELFunction.new("isEven")
         .param("n", "int")
         .returns("bool")
         .implement((n) => Number(n) % 2 === 0);
@@ -139,13 +139,13 @@ describe("Custom Functions", () => {
     });
 
     test("should define and use comparison functions", async () => {
-      const max = celFunction("max")
+      const max = CELFunction.new("max")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
         .implement((a, b) => Math.max(Number(a), Number(b)));
 
-      const min = celFunction("min")
+      const min = CELFunction.new("min")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
@@ -167,7 +167,7 @@ describe("Custom Functions", () => {
 
   describe("List functions", () => {
     test("should define and use sum function with list type", async () => {
-      const sum = celFunction("sum")
+      const sum = CELFunction.new("sum")
         .param("numbers", listType("int"))
         .returns("int")
         .implement((numbers) => {
@@ -186,7 +186,7 @@ describe("Custom Functions", () => {
     });
 
     test("should define and use average function", async () => {
-      const average = celFunction("average")
+      const average = CELFunction.new("average")
         .param("numbers", listType("double"))
         .returns("double")
         .implement((numbers) => {
@@ -206,7 +206,7 @@ describe("Custom Functions", () => {
     });
 
     test("should define and use contains function", async () => {
-      const contains = celFunction("contains")
+      const contains = CELFunction.new("contains")
         .param("list", listType("string"))
         .param("item", "string")
         .returns("bool")
@@ -237,13 +237,13 @@ describe("Custom Functions", () => {
 
   describe("Multiple functions", () => {
     test("should use multiple custom functions in one expression", async () => {
-      const add = celFunction("add")
+      const add = CELFunction.new("add")
         .param("a", "double")
         .param("b", "double")
         .returns("double")
         .implement((a, b) => Number(a) + Number(b));
 
-      const multiply = celFunction("multiply")
+      const multiply = CELFunction.new("multiply")
         .param("a", "double")
         .param("b", "double")
         .returns("double")
@@ -260,13 +260,13 @@ describe("Custom Functions", () => {
     });
 
     test("should use nested function calls", async () => {
-      const max = celFunction("max")
+      const max = CELFunction.new("max")
         .param("a", "double")
         .param("b", "double")
         .returns("double")
         .implement((a, b) => Math.max(Number(a), Number(b)));
 
-      const min = celFunction("min")
+      const min = CELFunction.new("min")
         .param("a", "double")
         .param("b", "double")
         .returns("double")
@@ -283,7 +283,7 @@ describe("Custom Functions", () => {
 
   describe("Complex function scenarios", () => {
     test("should combine custom functions with CEL built-ins", async () => {
-      const square = celFunction("square")
+      const square = CELFunction.new("square")
         .param("n", "int")
         .returns("int")
         .implement((n) => Number(n) * Number(n));
@@ -297,7 +297,7 @@ describe("Custom Functions", () => {
     });
 
     test("should use custom functions with ternary expressions", async () => {
-      const abs = celFunction("abs")
+      const abs = CELFunction.new("abs")
         .param("n", "double")
         .returns("double")
         .implement((n) => Math.abs(Number(n)));
@@ -312,7 +312,7 @@ describe("Custom Functions", () => {
     });
 
     test("should use custom functions with list operations", async () => {
-      const doubleValue = celFunction("doubleValue")
+      const doubleValue = CELFunction.new("doubleValue")
         .param("n", "int")
         .returns("int")
         .implement((n) => Number(n) * 2);
@@ -329,12 +329,12 @@ describe("Custom Functions", () => {
   describe("Function builder validation", () => {
     test("should throw error for invalid function name", () => {
       expect(() => {
-        celFunction("123invalid");
+        CELFunction.new("123invalid");
       }).toThrow("Invalid function name");
     });
 
     test("should return function definition when implement is called", () => {
-      const func = celFunction("test")
+      const func = CELFunction.new("test")
         .param("x", "int")
         .returns("int")
         .implement((x) => x * 2);
@@ -348,7 +348,7 @@ describe("Custom Functions", () => {
 
     test("should allow valid function names", () => {
       expect(() => {
-        celFunction("valid_name")
+        CELFunction.new("valid_name")
           .param("x", "int")
           .returns("int")
           .implement(() => 0);
@@ -358,7 +358,7 @@ describe("Custom Functions", () => {
 
   describe("Type helpers", () => {
     test("should use listType helper", async () => {
-      const sum = celFunction("sum")
+      const sum = CELFunction.new("sum")
         .param("numbers", listType("int"))
         .returns("int")
         .implement((numbers) => {
@@ -376,7 +376,7 @@ describe("Custom Functions", () => {
     });
 
     test("should use nested list types", async () => {
-      const flatten = celFunction("flatten")
+      const flatten = CELFunction.new("flatten")
         .param("lists", listType(listType("int")))
         .returns(listType("int"))
         .implement((lists) => {
@@ -398,7 +398,7 @@ describe("Custom Functions", () => {
 
   describe("Error handling with custom functions", () => {
     test("should handle function implementation errors gracefully", async () => {
-      const errorFunc = celFunction("errorFunc")
+      const errorFunc = CELFunction.new("errorFunc")
         .param("x", "int")
         .returns("int")
         .implement(() => {

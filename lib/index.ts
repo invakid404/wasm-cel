@@ -301,7 +301,7 @@ export class Env {
    *     { name: "y", type: "int" }
    *   ],
    *   functions: [
-   *     celFunction("add")
+   *     CELFunction.new("add")
    *       .param("a", "int")
    *       .param("b", "int")
    *       .returns("int")
@@ -490,9 +490,4 @@ export type {
   TypeCheckResult,
 } from "./types.js";
 
-export {
-  celFunction,
-  listType,
-  mapType,
-  CELFunctionBuilder,
-} from "./functions.js";
+export { listType, mapType, CELFunction } from "./functions.js";

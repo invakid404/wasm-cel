@@ -1,9 +1,9 @@
-import { Env, celFunction } from "../dist/index.js";
+import { Env, CELFunction } from "../dist/index.js";
 
 describe("Memory Management", () => {
   describe("Environment and Program lifecycle", () => {
     test("programs should continue to work after environment is destroyed", async () => {
-      const add = celFunction("add")
+      const add = CELFunction.new("add")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
@@ -45,7 +45,7 @@ describe("Memory Management", () => {
     });
 
     test("functions should be cleaned up when all programs are destroyed", async () => {
-      const add = celFunction("add")
+      const add = CELFunction.new("add")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
@@ -74,13 +74,13 @@ describe("Memory Management", () => {
     });
 
     test("should handle multiple environments with same function names", async () => {
-      const add1 = celFunction("add")
+      const add1 = CELFunction.new("add")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
         .implement((a, b) => a + b);
 
-      const add2 = celFunction("add")
+      const add2 = CELFunction.new("add")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
@@ -128,7 +128,7 @@ describe("Memory Management", () => {
     });
 
     test("should immediately clean up environment with no programs", async () => {
-      const add = celFunction("add")
+      const add = CELFunction.new("add")
         .param("a", "int")
         .param("b", "int")
         .returns("int")
