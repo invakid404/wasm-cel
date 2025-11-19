@@ -35,6 +35,14 @@ type EvalProgramFunction = (
   error?: string;
 };
 
+type TypecheckExprFunction = (
+  envID: string,
+  expr: string,
+) => {
+  type?: any;
+  error?: string;
+};
+
 type GoConstructor = {
   new (): {
     importObject: WebAssembly.Imports;
@@ -48,6 +56,7 @@ declare global {
     registerCELFunction: RegisterCELFunction;
     createEnv: CreateEnvFunction;
     compileExpr: CompileExprFunction;
+    typecheckExpr: TypecheckExprFunction;
     evalProgram: EvalProgramFunction;
   }
 
@@ -55,6 +64,7 @@ declare global {
   var registerCELFunction: RegisterCELFunction;
   var createEnv: CreateEnvFunction;
   var compileExpr: CompileExprFunction;
+  var typecheckExpr: TypecheckExprFunction;
   var evalProgram: EvalProgramFunction;
 }
 

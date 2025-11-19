@@ -89,3 +89,11 @@ export interface EnvOptions {
   /** Custom functions to register */
   functions?: CELFunctionDefinition[];
 }
+
+/**
+ * Result of typechecking a CEL expression
+ */
+export interface TypeCheckResult {
+  /** The inferred type of the expression */
+  type: CELTypeDef;
+}

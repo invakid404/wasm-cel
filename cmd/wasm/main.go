@@ -117,6 +117,20 @@ func compileExpr(this js.Value, args []js.Value) interface{} {
 	return cel.Compile(envID, exprStr)
 }
 
+// typecheckExpr typechecks a CEL expression using an environment
+func typecheckExpr(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return map[string]interface{}{
+			"error": "expected 2 arguments: envID string, expression string",
+		}
+	}
+
+	envID := args[0].String()
+	exprStr := args[1].String()
+
+	return cel.Typecheck(envID, exprStr)
+}
+
 // evalProgram evaluates a compiled program
 func evalProgram(this js.Value, args []js.Value) interface{} {
 	if len(args) < 2 {
@@ -153,6 +167,7 @@ func main() {
 	// Register the API functions
 	js.Global().Set("createEnv", js.FuncOf(createEnv))
 	js.Global().Set("compileExpr", js.FuncOf(compileExpr))
+	js.Global().Set("typecheckExpr", js.FuncOf(typecheckExpr))
 	js.Global().Set("evalProgram", js.FuncOf(evalProgram))
 
 	// Keep the program running

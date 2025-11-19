@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
-import type { CELFunctionDefinition, CELTypeDef, EnvOptions } from "./types.js";
+import type { CELFunctionDefinition, CELTypeDef, EnvOptions, TypeCheckResult } from "./types.js";
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -301,6 +301,51 @@ export class Env {
       }
     });
   }
+
+  /**
+   * Typecheck a CEL expression in this environment without compiling it
+   * @param expr - The CEL expression to typecheck
+   * @returns Promise resolving to the type information
+   * @throws Error if typechecking fails
+   *
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [{ name: "x", type: "int" }, { name: "y", type: "int" }]
+   * });
+   * const typeInfo = await env.typecheck("x + y");
+   * console.log(typeInfo.type); // "int"
+   *
+   * const listType = await env.typecheck("[1, 2, 3]");
+   * console.log(listType.type); // { kind: "list", elementType: "int" }
+   * ```
+   */
+  async typecheck(expr: string): Promise<TypeCheckResult> {
+    await init();
+
+    if (typeof expr !== "string") {
+      throw new Error("Expression must be a string");
+    }
+
+    return new Promise<TypeCheckResult>((resolve, reject) => {
+      try {
+        const globalObj =
+          typeof globalThis !== "undefined" ? globalThis : global;
+        const result = globalObj.typecheckExpr(this.envID, expr);
+
+        if (result.error) {
+          reject(new Error(result.error));
+        } else if (result.type === undefined) {
+          reject(new Error("Typecheck failed: no type returned"));
+        } else {
+          resolve({ type: result.type });
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        reject(new Error(`WASM call failed: ${error.message}`));
+      }
+    });
+  }
 }
 
 // Re-export types and functions
@@ -313,6 +358,7 @@ export type {
   CELFunctionParam,
   EnvOptions,
   VariableDeclaration,
+  TypeCheckResult,
 } from "./types.js";
 
 export {

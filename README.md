@@ -85,6 +85,45 @@ Compiles a CEL expression in the environment.
 const program = await env.compile('x + 10');
 ```
 
+### `env.typecheck(expr: string): Promise<TypeCheckResult>`
+
+Typechecks a CEL expression in the environment without compiling it. This is useful for validating expressions and getting type information before compilation.
+
+**Parameters:**
+- `expr` (string): The CEL expression to typecheck
+
+**Returns:**
+- `Promise<TypeCheckResult>`: A promise that resolves to type information with a `type` property containing the inferred type
+
+**Example:**
+```typescript
+const env = await Env.new({
+  variables: [
+    { name: 'x', type: 'int' },
+    { name: 'y', type: 'int' }
+  ]
+});
+
+// Typecheck a simple expression
+const typeInfo = await env.typecheck('x + y');
+console.log(typeInfo.type); // "int"
+
+// Typecheck a list expression
+const listType = await env.typecheck('[1, 2, 3]');
+console.log(listType.type); // { kind: "list", elementType: "int" }
+
+// Typecheck a map expression
+const mapType = await env.typecheck('{"key": "value"}');
+console.log(mapType.type); // { kind: "map", keyType: "string", valueType: "string" }
+
+// Typechecking will throw an error for invalid expressions
+try {
+  await env.typecheck('x + "invalid"'); // Type mismatch
+} catch (error) {
+  console.error(error.message); // Typecheck error message
+}
+```
+
 ### `program.eval(vars?: Record<string, any> | null): Promise<any>`
 
 Evaluates the compiled program with the given variables.
@@ -109,7 +148,7 @@ Initializes the WASM module. This is called automatically by the API functions, 
 This package includes TypeScript type definitions. Import types as needed:
 
 ```typescript
-import { Env, Program, EnvOptions, VariableDeclaration } from 'wasm-cel';
+import { Env, Program, EnvOptions, VariableDeclaration, TypeCheckResult } from 'wasm-cel';
 ```
 
 ## Building from Source

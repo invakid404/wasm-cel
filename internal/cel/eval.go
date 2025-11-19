@@ -226,6 +226,56 @@ func Compile(envID string, exprStr string) map[string]interface{} {
 	}
 }
 
+// Typecheck typechecks a CEL expression using the specified environment
+// Returns the type of the expression without compiling it
+func Typecheck(envID string, exprStr string) map[string]interface{} {
+	envState, ok := envs[envID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
+	// Parse and compile the expression (this performs typechecking)
+	ast, issues := envState.env.Compile(exprStr)
+	if issues != nil && issues.Err() != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("typecheck error: %v", issues.Err()),
+		}
+	}
+
+	// Check for compilation errors
+	if !ast.IsChecked() {
+		return map[string]interface{}{
+			"error": "expression typecheck failed: not checked",
+		}
+	}
+
+	// Get the type of the expression
+	exprType := ast.OutputType()
+	if exprType == nil {
+		return map[string]interface{}{
+			"error": "expression has no type information",
+		}
+	}
+
+	// Convert cel.Type to exprpb.Type
+	exprTypeExpr, err := cel.TypeToExprType(exprType)
+	if err != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("failed to convert type: %v", err),
+		}
+	}
+
+	// Convert the type to JSON-serializable format
+	typeInfo := typeToJSON(exprTypeExpr)
+
+	return map[string]interface{}{
+		"type":  typeInfo,
+		"error": nil,
+	}
+}
+
 // Eval evaluates a compiled program with the given variables
 func Eval(programID string, vars map[string]interface{}) map[string]interface{} {
 	programState, ok := programs[programID]
@@ -331,6 +381,59 @@ func parseTypeName(typeName string) *exprpb.Type {
 	default:
 		return decls.Dyn
 	}
+}
+
+// typeToJSON converts a CEL exprpb.Type to a JSON-serializable format
+// This is the inverse of parseTypeDef
+func typeToJSON(exprType *exprpb.Type) interface{} {
+	if exprType == nil {
+		return "dyn"
+	}
+
+	switch exprType.GetTypeKind().(type) {
+	case *exprpb.Type_Primitive:
+		switch exprType.GetPrimitive() {
+		case exprpb.Type_BOOL:
+			return "bool"
+		case exprpb.Type_INT64:
+			return "int"
+		case exprpb.Type_UINT64:
+			return "uint"
+		case exprpb.Type_DOUBLE:
+			return "double"
+		case exprpb.Type_STRING:
+			return "string"
+		case exprpb.Type_BYTES:
+			return "bytes"
+		}
+	case *exprpb.Type_WellKnown:
+		switch exprType.GetWellKnown() {
+		case exprpb.Type_TIMESTAMP:
+			return "timestamp"
+		case exprpb.Type_DURATION:
+			return "duration"
+		}
+	case *exprpb.Type_ListType_:
+		elemType := exprType.GetListType().GetElemType()
+		return map[string]interface{}{
+			"kind":        "list",
+			"elementType": typeToJSON(elemType),
+		}
+	case *exprpb.Type_MapType_:
+		mapType := exprType.GetMapType()
+		return map[string]interface{}{
+			"kind":      "map",
+			"keyType":   typeToJSON(mapType.GetKeyType()),
+			"valueType": typeToJSON(mapType.GetValueType()),
+		}
+	case *exprpb.Type_Null:
+		return "null"
+	case *exprpb.Type_Dyn:
+		return "dyn"
+	}
+
+	// Fallback to dynamic type
+	return "dyn"
 }
 
 // ValueToJSON converts a CEL ref.Val to a JSON-serializable value
