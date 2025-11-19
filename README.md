@@ -17,20 +17,20 @@ yarn add wasm-cel
 The library follows the CEL pattern: create an environment, compile an expression, and then evaluate it:
 
 ```typescript
-import { Env } from 'wasm-cel';
+import { Env } from "wasm-cel";
 
 // Create an environment with variable declarations
 const env = await Env.new({
   variables: [
-    { name: 'x', type: 'double' },
-    { name: 'y', type: 'double' },
-    { name: 'name', type: 'string' },
-    { name: 'age', type: 'double' }
-  ]
+    { name: "x", type: "double" },
+    { name: "y", type: "double" },
+    { name: "name", type: "string" },
+    { name: "age", type: "double" },
+  ],
 });
 
 // Compile an expression
-const program = await env.compile('x + y');
+const program = await env.compile("x + y");
 
 // Evaluate with variables
 const result = await program.eval({ x: 10, y: 20 });
@@ -41,8 +41,10 @@ const result2 = await program.eval({ x: 5, y: 15 });
 console.log(result2); // 20
 
 // Compile and evaluate multiple expressions with the same environment
-const program2 = await env.compile('name + " is " + string(age) + " years old"');
-const result3 = await program2.eval({ name: 'Alice', age: 30 });
+const program2 = await env.compile(
+  'name + " is " + string(age) + " years old"',
+);
+const result3 = await program2.eval({ name: "Alice", age: 30 });
 console.log(result3); // "Alice is 30 years old"
 ```
 
@@ -53,20 +55,23 @@ console.log(result3); // "Alice is 30 years old"
 Creates a new CEL environment with variable declarations and optional function definitions.
 
 **Parameters:**
+
 - `options` (EnvOptions, optional): Options including:
   - `variables` (VariableDeclaration[], optional): Array of variable declarations with name and type
   - `functions` (CELFunctionDefinition[], optional): Array of custom function definitions
 
 **Returns:**
+
 - `Promise<Env>`: A promise that resolves to a new Env instance
 
 **Example:**
+
 ```typescript
 const env = await Env.new({
   variables: [
-    { name: 'x', type: 'int' },
-    { name: 'y', type: 'string' }
-  ]
+    { name: "x", type: "int" },
+    { name: "y", type: "string" },
+  ],
 });
 ```
 
@@ -75,14 +80,17 @@ const env = await Env.new({
 Compiles a CEL expression in the environment.
 
 **Parameters:**
+
 - `expr` (string): The CEL expression to compile
 
 **Returns:**
+
 - `Promise<Program>`: A promise that resolves to a compiled Program
 
 **Example:**
+
 ```typescript
-const program = await env.compile('x + 10');
+const program = await env.compile("x + 10");
 ```
 
 ### `env.typecheck(expr: string): Promise<TypeCheckResult>`
@@ -90,26 +98,29 @@ const program = await env.compile('x + 10');
 Typechecks a CEL expression in the environment without compiling it. This is useful for validating expressions and getting type information before compilation.
 
 **Parameters:**
+
 - `expr` (string): The CEL expression to typecheck
 
 **Returns:**
+
 - `Promise<TypeCheckResult>`: A promise that resolves to type information with a `type` property containing the inferred type
 
 **Example:**
+
 ```typescript
 const env = await Env.new({
   variables: [
-    { name: 'x', type: 'int' },
-    { name: 'y', type: 'int' }
-  ]
+    { name: "x", type: "int" },
+    { name: "y", type: "int" },
+  ],
 });
 
 // Typecheck a simple expression
-const typeInfo = await env.typecheck('x + y');
+const typeInfo = await env.typecheck("x + y");
 console.log(typeInfo.type); // "int"
 
 // Typecheck a list expression
-const listType = await env.typecheck('[1, 2, 3]');
+const listType = await env.typecheck("[1, 2, 3]");
 console.log(listType.type); // { kind: "list", elementType: "int" }
 
 // Typecheck a map expression
@@ -129,12 +140,15 @@ try {
 Evaluates the compiled program with the given variables.
 
 **Parameters:**
+
 - `vars` (Record<string, any> | null, optional): Variables to use in the evaluation. Defaults to `null`.
 
 **Returns:**
+
 - `Promise<any>`: A promise that resolves to the evaluation result
 
 **Example:**
+
 ```typescript
 const result = await program.eval({ x: 5 });
 ```
@@ -148,7 +162,13 @@ Initializes the WASM module. This is called automatically by the API functions, 
 This package includes TypeScript type definitions. Import types as needed:
 
 ```typescript
-import { Env, Program, EnvOptions, VariableDeclaration, TypeCheckResult } from 'wasm-cel';
+import {
+  Env,
+  Program,
+  EnvOptions,
+  VariableDeclaration,
+  TypeCheckResult,
+} from "wasm-cel";
 ```
 
 ## Building from Source

@@ -3,7 +3,12 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
-import type { CELFunctionDefinition, CELTypeDef, EnvOptions, TypeCheckResult } from "./types.js";
+import type {
+  CELFunctionDefinition,
+  CELTypeDef,
+  EnvOptions,
+  TypeCheckResult,
+} from "./types.js";
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);

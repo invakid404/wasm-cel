@@ -34,7 +34,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
+  "files": [
+    "dist/**/*",
+    "main.wasm",
+    "wasm_exec.cjs",
+    "README.md"
+  ],
   "devDependencies": {
     "@types/node": "^20.0.0",
     "jest": "^30.2.0",
