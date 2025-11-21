@@ -46,6 +46,10 @@ export type EnvOptionConfig =
   | {
       type: "ASTValidators";
       params?: import("./astValidators.js").ASTValidatorsInternalConfig;
+    }
+  | {
+      type: "CrossTypeNumericComparisons";
+      params?: import("./crossTypeNumericComparisons.js").CrossTypeNumericComparisonsConfig;
     };
 
 /**
@@ -56,4 +60,4 @@ export type EnvOptionInput = EnvOptionConfig | OptionWithSetup;
 /**
  * Available option types
  */
-export type OptionType = "OptionalTypes" | "ASTValidators";
+export type OptionType = "OptionalTypes" | "ASTValidators" | "CrossTypeNumericComparisons";

@@ -4,6 +4,7 @@
 
 import { optionalTypes } from "./optionalTypes.js";
 import { astValidators } from "./astValidators.js";
+import { crossTypeNumericComparisons } from "./crossTypeNumericComparisons.js";
 
 /**
  * Helper object containing functions for creating CEL environment option configurations
@@ -69,5 +70,40 @@ export const Options = {
    * ```
    */
   astValidators,
+
+  /**
+   * Create a CrossTypeNumericComparisons option configuration
+   * 
+   * This option enables cross-type numeric comparisons for ordering operators
+   * in CEL expressions, allowing you to compare values of different numeric types
+   * using <, <=, >, >= operators (but not == or !=).
+   * 
+   * @param config - Configuration for cross-type numeric comparisons
+   * @returns An option configuration for enabling cross-type numeric comparisons
+   * 
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [
+   *     { name: "doubleValue", type: "double" },
+   *     { name: "intValue", type: "int" }
+   *   ],
+   *   options: [Options.crossTypeNumericComparisons()]
+   * });
+   * 
+   * // Now you can use cross-type ordering comparisons:
+   * const program = env.compile("doubleValue > intValue");
+   * ```
+   * 
+   * @example
+   * ```typescript
+   * // Explicitly disable cross-type comparisons
+   * const env = await Env.new({
+   *   variables: [{ name: "x", type: "int" }],
+   *   options: [Options.crossTypeNumericComparisons({ enabled: false })]
+   * });
+   * ```
+   */
+  crossTypeNumericComparisons,
 
 } as const;

@@ -920,4 +920,216 @@ describe("CEL Environment Options", () => {
       env.destroy();
     });
   });
+
+  describe("CrossTypeNumericComparisons option", () => {
+    test("should create environment with CrossTypeNumericComparisons during construction", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+        options: [Options.crossTypeNumericComparisons()],
+      });
+
+      // Test double > int comparison
+      const program1 = await env.compile("doubleValue > intValue");
+      const result1 = await program1.eval({ doubleValue: 3.14, intValue: 3 });
+      expect(result1).toBe(true);
+
+      // Test int < double comparison
+      const program2 = await env.compile("intValue < doubleValue");
+      const result2 = await program2.eval({ intValue: 3, doubleValue: 3.14 });
+      expect(result2).toBe(true);
+
+      // Test double <= int comparison
+      const program3 = await env.compile("doubleValue <= intValue");
+      const result3 = await program3.eval({ doubleValue: 1.5, intValue: 2 });
+      expect(result3).toBe(true);
+
+      program1.destroy();
+      program2.destroy();
+      program3.destroy();
+      env.destroy();
+    });
+
+    test("should handle explicit enabled configuration", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+        options: [Options.crossTypeNumericComparisons({ enabled: true })],
+      });
+
+      const program = await env.compile("doubleValue < intValue");
+      const result = await program.eval({ doubleValue: 2.5, intValue: 3 });
+      expect(result).toBe(true);
+
+      program.destroy();
+      env.destroy();
+    });
+
+    test("should disable cross-type comparisons when enabled: false", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+        options: [Options.crossTypeNumericComparisons({ enabled: false })],
+      });
+
+      // This should fail at compile time because cross-type comparisons are disabled
+      await expect(env.compile("doubleValue > intValue")).rejects.toThrow();
+
+      env.destroy();
+    });
+
+    test("should extend environment with CrossTypeNumericComparisons after creation", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+      });
+
+      // Before extending, cross-type comparisons should fail
+      await expect(env.compile("doubleValue > intValue")).rejects.toThrow();
+
+      await env.extend([Options.crossTypeNumericComparisons()]);
+
+      // After extending, cross-type comparisons should work
+      const program = await env.compile("doubleValue > intValue");
+      const result = await program.eval({ doubleValue: 3.14, intValue: 3 });
+      expect(result).toBe(true);
+
+      program.destroy();
+      env.destroy();
+    });
+
+    test("should work with various numeric comparison operations", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+          { name: "uintValue", type: "uint" },
+        ],
+        options: [Options.crossTypeNumericComparisons()],
+      });
+
+      // Test all supported comparison operators (CrossTypeNumericComparisons only supports ordering operators, not equality)
+      const tests = [
+        { expr: "doubleValue > intValue", vars: { doubleValue: 42.1, intValue: 42, uintValue: 1 }, expected: true },
+        { expr: "doubleValue >= intValue", vars: { doubleValue: 42.0, intValue: 42, uintValue: 1 }, expected: true },
+        { expr: "doubleValue < intValue", vars: { doubleValue: 41.9, intValue: 42, uintValue: 1 }, expected: true },
+        { expr: "doubleValue <= intValue", vars: { doubleValue: 42.0, intValue: 42, uintValue: 1 }, expected: true },
+        { expr: "intValue > uintValue", vars: { doubleValue: 1.0, intValue: 42, uintValue: 41 }, expected: true },
+        { expr: "uintValue < doubleValue", vars: { doubleValue: 42.1, intValue: 1, uintValue: 42 }, expected: true },
+        { expr: "intValue >= doubleValue", vars: { doubleValue: 41.9, intValue: 42, uintValue: 1 }, expected: true },
+        { expr: "uintValue <= intValue", vars: { doubleValue: 1.0, intValue: 42, uintValue: 41 }, expected: true },
+      ];
+
+      for (const test of tests) {
+        const program = await env.compile(test.expr);
+        const result = await program.eval(test.vars);
+        expect(result).toBe(test.expected);
+        program.destroy();
+      }
+
+      env.destroy();
+    });
+
+    test("should handle edge cases with zero and negative numbers", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+        options: [Options.crossTypeNumericComparisons()],
+      });
+
+      // Test with zero values
+      const program1 = await env.compile("intValue <= doubleValue && doubleValue <= intValue");
+      const result1 = await program1.eval({ intValue: 0, doubleValue: 0.0 });
+      expect(result1).toBe(true);
+
+      // Test with negative numbers
+      const program2 = await env.compile("intValue > doubleValue");
+      const result2 = await program2.eval({ intValue: -1, doubleValue: -1.5 });
+      expect(result2).toBe(true);
+
+      // Test with mixed positive/negative
+      const program3 = await env.compile("doubleValue > intValue");
+      const result3 = await program3.eval({ doubleValue: 0.1, intValue: -1 });
+      expect(result3).toBe(true);
+
+      program1.destroy();
+      program2.destroy();
+      program3.destroy();
+      env.destroy();
+    });
+
+    test("should work with complex expressions involving cross-type comparisons", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+          { name: "threshold", type: "double" },
+        ],
+        options: [Options.crossTypeNumericComparisons()],
+      });
+
+      // Complex expression with multiple cross-type comparisons
+      const program = await env.compile(
+        "intValue > 0 && doubleValue >= threshold && intValue < (doubleValue + doubleValue)"
+      );
+      
+      const result = await program.eval({
+        intValue: 5,
+        doubleValue: 3.0,
+        threshold: 2.5,
+      });
+      expect(result).toBe(true);
+
+      program.destroy();
+      env.destroy();
+    });
+
+    test("should produce same results for options during creation vs extend", async () => {
+      // Environment with option during creation
+      const env1 = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+        options: [Options.crossTypeNumericComparisons()],
+      });
+
+      // Environment with option added via extend
+      const env2 = await Env.new({
+        variables: [
+          { name: "intValue", type: "int" },
+          { name: "doubleValue", type: "double" },
+        ],
+      });
+      await env2.extend([Options.crossTypeNumericComparisons()]);
+
+      const expression = "doubleValue > intValue && intValue >= (doubleValue - 0.15) && intValue <= (doubleValue - 0.13)";
+      const variables = { intValue: 3, doubleValue: 3.14 };
+
+      const program1 = await env1.compile(expression);
+      const program2 = await env2.compile(expression);
+
+      const result1 = await program1.eval(variables);
+      const result2 = await program2.eval(variables);
+
+      expect(result1).toBe(true);
+      expect(result2).toBe(true);
+      expect(result1).toBe(result2);
+
+      program1.destroy();
+      program2.destroy();
+      env1.destroy();
+      env2.destroy();
+    });
+  });
 });
