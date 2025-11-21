@@ -186,6 +186,21 @@ func destroyProgram(this js.Value, args []js.Value) interface{} {
 	return cel.DestroyProgram(programID)
 }
 
+// extendEnv extends an existing environment with additional options
+func extendEnv(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return map[string]interface{}{
+			"error": "expected 2 arguments: envID string, options string",
+		}
+	}
+
+	envID := args[0].String()
+	optionsJSON := args[1].String()
+
+	return cel.ExtendEnv(envID, optionsJSON)
+}
+
+
 func main() {
 	// Set the JavaScript function caller
 	cel.SetJSFunctionCaller(functionCaller)
@@ -197,11 +212,13 @@ func main() {
 
 	// Register the API functions
 	js.Global().Set("createEnv", js.FuncOf(createEnv))
+	js.Global().Set("extendEnv", js.FuncOf(extendEnv))
 	js.Global().Set("compileExpr", js.FuncOf(compileExpr))
 	js.Global().Set("typecheckExpr", js.FuncOf(typecheckExpr))
 	js.Global().Set("evalProgram", js.FuncOf(evalProgram))
 	js.Global().Set("destroyEnv", js.FuncOf(destroyEnv))
 	js.Global().Set("destroyProgram", js.FuncOf(destroyProgram))
+
 
 	// Keep the program running
 	// In WASM, we need to keep the main goroutine alive

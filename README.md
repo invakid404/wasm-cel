@@ -50,12 +50,68 @@ const result3 = await program2.eval({ name: "Alice", age: 30 });
 console.log(result3); // "Alice is 30 years old"
 ```
 
+## CEL Environment Options
+
+The library supports configurable CEL environment options to enable additional CEL features. Options can be provided during environment creation or added later using the `extend()` method.
+
+### Available Options
+
+#### OptionalTypes
+
+Enables support for optional syntax and types in CEL, including optional field access (`obj.?field`), optional indexing (`list[?0]`), and optional value creation (`optional.of(value)`).
+
+```typescript
+import { Env, Options } from "wasm-cel";
+
+const env = await Env.new({
+  variables: [
+    { name: "data", type: { kind: "map", keyType: "string", valueType: "string" } }
+  ],
+  options: [Options.optionalTypes()]
+});
+
+const program = await env.compile('data.?name.orValue("Anonymous")');
+const result = await program.eval({ data: {} });
+console.log(result); // "Anonymous"
+```
+
+### Adding Options After Creation
+
+You can also extend an environment with options after it's created:
+
+```typescript
+const env = await Env.new({
+  variables: [
+    { name: "data", type: { kind: "map", keyType: "string", valueType: "string" } }
+  ]
+});
+
+// Add options later
+await env.extend([Options.optionalTypes()]);
+
+const program = await env.compile('data.?greeting.orValue("Hello")');
+const result = await program.eval({ data: {} });
+console.log(result); // "Hello"
+```
+
+### Complex Options with Setup
+
+The library supports an inverted architecture where complex options can handle their own JavaScript-side setup operations. This enables options that need to register custom functions or perform other setup tasks.
+
+**Architecture Benefits:**
+- Options handle their own complexity and setup operations
+- Environment class stays simple and focused
+- Easy to add new complex options without modifying core code
+- Clean separation of concerns
+
+Complex options implement the `OptionWithSetup` interface and can perform setup operations before being applied to the environment.
+
 ## API
 
 ### `Env.new(options?: EnvOptions): Promise<Env>`
 
-Creates a new CEL environment with variable declarations and optional function
-definitions.
+Creates a new CEL environment with variable declarations, optional function
+definitions, and CEL environment options.
 
 **Parameters:**
 
@@ -64,6 +120,8 @@ definitions.
     declarations with name and type
   - `functions` (CELFunctionDefinition[], optional): Array of custom function
     definitions
+  - `options` (EnvOptionInput[], optional): Array of CEL environment options
+    (like OptionalTypes)
 
 **Returns:**
 
@@ -72,11 +130,16 @@ definitions.
 **Example:**
 
 ```typescript
+import { Env, Options } from "wasm-cel";
+
 const env = await Env.new({
   variables: [
     { name: "x", type: "int" },
-    { name: "y", type: "string" },
+    { name: "data", type: { kind: "map", keyType: "string", valueType: "string" } },
   ],
+  options: [
+    Options.optionalTypes() // Enable optional syntax like data.?field
+  ]
 });
 ```
 
@@ -96,6 +159,29 @@ Compiles a CEL expression in the environment.
 
 ```typescript
 const program = await env.compile("x + 10");
+```
+
+### `env.extend(options: EnvOptionInput[]): Promise<void>`
+
+Extends the environment with additional CEL environment options after creation.
+
+**Parameters:**
+
+- `options` (EnvOptionInput[]): Array of CEL environment option configurations or complex options with setup
+
+**Returns:**
+
+- `Promise<void>`: A promise that resolves when the environment has been extended
+
+**Example:**
+
+```typescript
+const env = await Env.new({
+  variables: [{ name: "x", type: "int" }]
+});
+
+// Add options after creation
+await env.extend([Options.optionalTypes()]);
 ```
 
 ### `env.typecheck(expr: string): Promise<TypeCheckResult>`
@@ -313,6 +399,7 @@ This package includes TypeScript type definitions. Import types as needed:
 import {
   Env,
   Program,
+  Options,
   EnvOptions,
   VariableDeclaration,
   TypeCheckResult,

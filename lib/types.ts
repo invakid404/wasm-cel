@@ -88,6 +88,8 @@ export interface EnvOptions {
   variables?: VariableDeclaration[];
   /** Custom functions to register */
   functions?: CELFunctionDefinition[];
+  /** Environment options (like OptionalTypes) */
+  options?: import("./options.js").EnvOptionInput[];
 }
 
 /**

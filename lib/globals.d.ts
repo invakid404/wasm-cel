@@ -19,6 +19,14 @@ type CreateEnvFunction = (
   error?: string;
 };
 
+type ExtendEnvFunction = (
+  envID: string,
+  options: string,
+) => {
+  success?: boolean;
+  error?: string;
+};
+
 type CompileExprFunction = (
   envID: string,
   expr: string,
@@ -53,6 +61,7 @@ type DestroyProgramFunction = (programID: string) => {
   error?: string;
 };
 
+
 type GoConstructor = {
   new (): {
     importObject: WebAssembly.Imports;
@@ -65,6 +74,7 @@ declare global {
     Go: typeof Go;
     registerCELFunction: RegisterCELFunction;
     createEnv: CreateEnvFunction;
+    extendEnv: ExtendEnvFunction;
     compileExpr: CompileExprFunction;
     typecheckExpr: TypecheckExprFunction;
     evalProgram: EvalProgramFunction;
@@ -75,6 +85,7 @@ declare global {
   var Go: GoConstructor;
   var registerCELFunction: RegisterCELFunction;
   var createEnv: CreateEnvFunction;
+  var extendEnv: ExtendEnvFunction;
   var compileExpr: CompileExprFunction;
   var typecheckExpr: TypecheckExprFunction;
   var evalProgram: EvalProgramFunction;

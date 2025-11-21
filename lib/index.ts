@@ -288,8 +288,15 @@ export class Env {
   }
 
   /**
+   * Get the environment ID (useful for debugging or advanced use cases)
+   */
+  getID(): string {
+    return this.envID;
+  }
+
+  /**
    * Create a new CEL environment
-   * @param options - Options including variable declarations and function definitions
+   * @param options - Options including variable declarations, function definitions, and environment options
    * @returns Promise resolving to a new Env instance
    * @throws Error if environment creation fails
    *
@@ -306,6 +313,9 @@ export class Env {
    *       .param("b", "int")
    *       .returns("int")
    *       .implement((a, b) => a + b)
+   *   ],
+   *   options: [
+   *     Options.optionalTypes()
    *   ]
    * });
    * ```
@@ -325,7 +335,9 @@ export class Env {
       serializedFuncDefs = serializeFunctionDefs(options.functions);
     }
 
-    return new Promise<Env>((resolve, reject) => {
+    // INTERNAL: Create environment first without options, then extend if needed
+    // This allows complex options to perform JavaScript-side setup before being applied
+    const env = await new Promise<Env>((resolve, reject) => {
       try {
         const globalObj =
           typeof globalThis !== "undefined" ? globalThis : global;
@@ -343,6 +355,14 @@ export class Env {
         reject(new Error(`WASM call failed: ${error.message}`));
       }
     });
+
+    // INTERNAL: If options were provided, extend the environment
+    // This allows options to perform JavaScript-side setup (like registering functions)
+    if (options?.options && options.options.length > 0) {
+      await env._extendWithOptions(options.options);
+    }
+
+    return env;
   }
 
   /**
@@ -442,6 +462,102 @@ export class Env {
   }
 
   /**
+   * Extend this environment with additional CEL environment options
+   * @param options - Array of CEL environment option configurations or complex options with setup
+   * @returns Promise that resolves when the environment has been extended
+   * @throws Error if extension fails or environment has been destroyed
+   * 
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [{ name: "x", type: "int" }]
+   * });
+   * 
+   * // Add options after creation
+   * await env.extend([Options.optionalTypes()]);
+   * ```
+   */
+  async extend(options: import("./options.js").EnvOptionInput[]): Promise<void> {
+    return this._extendWithOptions(options);
+  }
+
+  /**
+   * Internal method to extend environment with options
+   * This method delegates to options that implement OptionWithSetup for complex operations
+   * @private
+   */
+  private async _extendWithOptions(options: import("./options.js").EnvOptionInput[]): Promise<void> {
+    if (this.destroyed) {
+      throw new Error("Environment has been destroyed");
+    }
+
+    await init();
+
+    if (!options || options.length === 0) {
+      return; // Nothing to extend
+    }
+
+    // Process options: delegate to options that can handle their own setup
+    const processedOptions: import("./options.js").EnvOptionConfig[] = [];
+    
+    for (const option of options) {
+      // Check if this option implements OptionWithSetup
+      if ('setupAndProcess' in option && typeof option.setupAndProcess === 'function') {
+        // Let the option handle its own complex setup operations
+        const setupEnv: import("./options.js").OptionSetupEnvironment = {
+          getID: () => this.getID(),
+          registerFunction: async (name: string, impl: (...args: any[]) => any): Promise<void> => {
+            if (this.destroyed) {
+              throw new Error("Environment has been destroyed");
+            }
+
+            // Generate a unique implementation ID for this function
+            const implID = `${name}_${this.envID}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+            // Register the JavaScript function implementation
+            const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+            if (typeof globalObj.registerCELFunction === "function") {
+              const registerResult = globalObj.registerCELFunction(implID, impl);
+              if (registerResult.error) {
+                throw new Error(
+                  `Failed to register function ${name}: ${registerResult.error}`,
+                );
+              }
+            } else {
+              throw new Error(
+                "registerCELFunction not available. Make sure WASM is initialized.",
+              );
+            }
+          },
+        };
+        const processedOption = await option.setupAndProcess(setupEnv);
+        processedOptions.push(processedOption);
+      } else {
+        // Simple option configuration, pass through directly
+        processedOptions.push(option as import("./options.js").EnvOptionConfig);
+      }
+    }
+
+    const serializedOptions = JSON.stringify(processedOptions);
+
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+        const result = globalObj.extendEnv(this.envID, serializedOptions);
+
+        if (result.error) {
+          reject(new Error(result.error));
+        } else {
+          resolve();
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        reject(new Error(`WASM call failed: ${error.message}`));
+      }
+    });
+  }
+
+  /**
    * Destroy this environment and free associated WASM resources.
    * This will also clean up any registered JavaScript functions associated
    * with this environment.
@@ -491,3 +607,5 @@ export type {
 } from "./types.js";
 
 export { listType, mapType, CELFunction } from "./functions.js";
+export { Options } from "./options.js";
+export type { EnvOptionConfig, OptionalTypesConfig, OptionType } from "./options.js";

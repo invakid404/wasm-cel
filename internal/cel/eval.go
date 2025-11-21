@@ -9,6 +9,7 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
+	"github.com/invakid404/wasm-cel/internal/wasmenv"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
@@ -80,6 +81,54 @@ type VarDecl struct {
 // CreateEnv creates a new CEL environment with variable declarations and function definitions
 // Returns an environment ID that can be used for compilation
 func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{} {
+	return CreateEnvWithOptions(varDecls, funcDefs, nil)
+}
+
+// ExtendEnv extends an existing environment with additional options
+// This allows adding options that require JavaScript functions after the environment is created
+func ExtendEnv(envID string, optionsJSON string) map[string]interface{} {
+	envState, ok := envs[envID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
+	// Check if environment has been destroyed
+	if envState.destroyed {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment has been destroyed: %s", envID),
+		}
+	}
+
+	// Parse and create the new options
+	envOptions, err := wasmenv.CreateOptionsFromJSON(optionsJSON)
+	if err != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("failed to create environment options: %v", err),
+		}
+	}
+
+	// Extend the existing environment with new options
+	newEnv, err := envState.env.Extend(envOptions...)
+	if err != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("failed to extend environment: %v", err),
+		}
+	}
+
+	// Replace the environment pointer with the extended environment
+	envState.env = newEnv
+
+	return map[string]interface{}{
+		"success": true,
+		"error":   nil,
+	}
+}
+
+// CreateEnvWithOptions creates a new CEL environment with variable declarations, function definitions, and environment options
+// Returns an environment ID that can be used for compilation
+func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSON *string) map[string]interface{} {
 	// Convert variable declarations to CEL declarations
 	var celVarDecls []*exprpb.Decl
 	for _, varDecl := range varDecls {
@@ -156,18 +205,35 @@ func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{
 		funcImpls = append(funcImpls, funcImpl)
 	}
 
-	// Create CEL environment with variable declarations and function declarations
+	// Create CEL environment with variable declarations, function declarations, and options
 	var env *cel.Env
 	var err error
 	opts := []cel.EnvOption{}
+	
+	// Add variable declarations
 	if len(celVarDecls) > 0 {
 		opts = append(opts, cel.Declarations(celVarDecls...))
 	}
+	
+	// Add function declarations
 	if len(funcDecls) > 0 {
 		opts = append(opts, cel.Declarations(funcDecls...))
 	}
+	
+	// Add function implementations
 	if len(funcImpls) > 0 {
 		opts = append(opts, funcImpls...)
+	}
+	
+	// Add environment options from configuration
+	if optionsJSON != nil && *optionsJSON != "" {
+		envOptions, err := wasmenv.CreateOptionsFromJSON(*optionsJSON)
+		if err != nil {
+			return map[string]interface{}{
+				"error": fmt.Sprintf("failed to create environment options: %v", err),
+			}
+		}
+		opts = append(opts, envOptions...)
 	}
 
 	if len(opts) > 0 {
@@ -724,3 +790,4 @@ func DestroyProgram(programID string) map[string]interface{} {
 		"error":   nil,
 	}
 }
+
