@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "GOOS=js GOARCH=wasm go build -o main.wasm ./cmd/wasm",
+    "build": "GOOS=js GOARCH=wasm go build -ldflags '-s -w' -o main.wasm ./cmd/wasm",
     "build:copy-wasm-exec": "node scripts/copy-wasm-exec.js",
     "build:ts": "tsc",
     "build:all": "pnpm run build && pnpm run build:copy-wasm-exec && pnpm run build:ts",
