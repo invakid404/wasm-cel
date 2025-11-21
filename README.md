@@ -52,13 +52,17 @@ console.log(result3); // "Alice is 30 years old"
 
 ## CEL Environment Options
 
-The library supports configurable CEL environment options to enable additional CEL features. Options can be provided during environment creation or added later using the `extend()` method.
+The library supports configurable CEL environment options to enable additional
+CEL features. Options can be provided during environment creation or added later
+using the `extend()` method.
 
 ### Available Options
 
 #### OptionalTypes
 
-Enables support for optional syntax and types in CEL, including optional field access (`obj.?field`), optional indexing (`list[?0]`), and optional value creation (`optional.of(value)`).
+Enables support for optional syntax and types in CEL, including optional field
+access (`obj.?field`), optional indexing (`list[?0]`), and optional value
+creation (`optional.of(value)`).
 
 ```typescript
 import { Env, Options } from "wasm-cel";
@@ -76,6 +80,104 @@ const env = await Env.new({
 const program = await env.compile('data.?name.orValue("Anonymous")');
 const result = await program.eval({ data: {} });
 console.log(result); // "Anonymous"
+```
+
+#### ASTValidators
+
+Enables custom validation rules during CEL expression compilation. Validators
+can report errors, warnings, or info messages that are collected during
+compilation and can prevent compilation or provide detailed feedback.
+
+```typescript
+import { Env, Options } from "wasm-cel";
+
+const env = await Env.new({
+  variables: [
+    {
+      name: "user",
+      type: { kind: "map", keyType: "string", valueType: "string" },
+    },
+  ],
+  options: [
+    Options.astValidators({
+      validators: [
+        // Validator that warns about accessing potentially unsafe fields
+        (nodeType, nodeData, context) => {
+          if (nodeType === "select" && nodeData.field === "password") {
+            return {
+              issues: [
+                {
+                  severity: "warning",
+                  message: "Accessing password field may not be secure",
+                },
+              ],
+            };
+          }
+        },
+        // Validator that prevents certain function calls
+        (nodeType, nodeData, context) => {
+          if (
+            nodeType === "call" &&
+            nodeData.function === "dangerousFunction"
+          ) {
+            return {
+              issues: [
+                {
+                  severity: "error",
+                  message: "Use of dangerousFunction is not allowed",
+                },
+              ],
+            };
+          }
+        },
+      ],
+      options: {
+        failOnWarning: false, // Don't fail compilation on warnings
+        includeWarnings: true, // Include warnings in results
+      },
+    }),
+  ],
+});
+
+// Use compileDetailed() to see validation issues
+const result = await env.compileDetailed("user.password");
+if (result.success) {
+  console.log("Compiled with issues:", result.issues);
+  const evalResult = await result.program.eval({
+    user: { password: "secret" },
+  });
+} else {
+  console.log("Compilation failed:", result.error);
+}
+```
+
+#### CrossTypeNumericComparisons
+
+Enables cross-type numeric comparisons for ordering operators (`<`, `<=`, `>`,
+`>=`). This allows comparing values of different numeric types like
+`double > int` or `int <= double`. Note that this only affects ordering
+operators, not equality operators (`==`, `!=`).
+
+```typescript
+import { Env, Options } from "wasm-cel";
+
+const env = await Env.new({
+  variables: [
+    { name: "doubleValue", type: "double" },
+    { name: "intValue", type: "int" },
+  ],
+  options: [Options.crossTypeNumericComparisons()],
+});
+
+// Now you can use cross-type ordering comparisons:
+const program = await env.compile("doubleValue > intValue");
+const result = await program.eval({ doubleValue: 3.14, intValue: 3 });
+console.log(result); // true
+
+// Works with all ordering operators
+const program2 = await env.compile("intValue <= doubleValue + 1.0");
+const result2 = await program2.eval({ doubleValue: 2.5, intValue: 3 });
+console.log(result2); // true
 ```
 
 ### Adding Options After Creation
@@ -102,7 +204,9 @@ console.log(result); // "Hello"
 
 ### Complex Options with Setup
 
-The library supports an inverted architecture where complex options can handle their own JavaScript-side setup operations. This enables options that need to register custom functions or perform other setup tasks.
+The library supports an inverted architecture where complex options can handle
+their own JavaScript-side setup operations. This enables options that need to
+register custom functions or perform other setup tasks.
 
 **Architecture Benefits:**
 
@@ -111,7 +215,8 @@ The library supports an inverted architecture where complex options can handle t
 - Easy to add new complex options without modifying core code
 - Clean separation of concerns
 
-Complex options implement the `OptionWithSetup` interface and can perform setup operations before being applied to the environment.
+Complex options implement the `OptionWithSetup` interface and can perform setup
+operations before being applied to the environment.
 
 ## API
 
@@ -171,17 +276,58 @@ Compiles a CEL expression in the environment.
 const program = await env.compile("x + 10");
 ```
 
+### `env.compileDetailed(expr: string): Promise<CompilationResult>`
+
+Compiles a CEL expression with detailed results including warnings and
+validation issues. This method is particularly useful when using ASTValidators
+or when you need comprehensive feedback about the compilation process.
+
+**Parameters:**
+
+- `expr` (string): The CEL expression to compile
+
+**Returns:**
+
+- `Promise<CompilationResult>`: A promise that resolves to detailed compilation
+  results with:
+  - `success` (boolean): Whether compilation succeeded
+  - `error` (string, optional): Error message if compilation failed completely
+  - `issues` (CompilationIssue[]): All issues found during compilation (errors,
+    warnings, info)
+  - `program` (Program, optional): The compiled program if compilation succeeded
+
+**Example:**
+
+```typescript
+const result = await env.compileDetailed("user.password");
+if (result.success) {
+  console.log("Compiled successfully");
+  if (result.issues.length > 0) {
+    console.log("Validation issues:", result.issues);
+    // Example issue: { severity: "warning", message: "Accessing password field may not be secure" }
+  }
+  const evalResult = await result.program.eval({
+    user: { password: "secret" },
+  });
+} else {
+  console.log("Compilation failed:", result.error);
+  console.log("All issues:", result.issues);
+}
+```
+
 ### `env.extend(options: EnvOptionInput[]): Promise<void>`
 
 Extends the environment with additional CEL environment options after creation.
 
 **Parameters:**
 
-- `options` (EnvOptionInput[]): Array of CEL environment option configurations or complex options with setup
+- `options` (EnvOptionInput[]): Array of CEL environment option configurations
+  or complex options with setup
 
 **Returns:**
 
-- `Promise<void>`: A promise that resolves when the environment has been extended
+- `Promise<void>`: A promise that resolves when the environment has been
+  extended
 
 **Example:**
 
@@ -413,6 +559,17 @@ import {
   EnvOptions,
   VariableDeclaration,
   TypeCheckResult,
+  CompilationResult,
+  CompilationIssue,
+  ValidationIssue,
+  ValidationContext,
+  ValidatorResult,
+  ASTValidatorFunction,
+  ASTValidatorsConfig,
+  CrossTypeNumericComparisonsConfig,
+  OptionalTypesConfig,
+  EnvOptionConfig,
+  EnvOptionInput,
 } from "wasm-cel";
 ```
 
