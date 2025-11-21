@@ -3,12 +3,12 @@ package options
 
 import (
 	"fmt"
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/checker"
-	"github.com/google/cel-go/common/decls"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
-	"google.golang.org/genproto/googleapis/api/expr/v1alpha1"
+	cel "github.com/google/cel-go/cel"
+	checker "github.com/google/cel-go/checker"
+	decls "github.com/google/cel-go/common/decls"
+	types "github.com/google/cel-go/common/types"
+	ref "github.com/google/cel-go/common/types/ref"
+	v1alpha1 "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -374,7 +374,7 @@ func init() {
 // purely custom set of declarations use NewCustomEnv.
 // Deprecated: use FunctionDecls and VariableDecls or FromConfig instead.
 type DeclarationsBuilder struct {
-	Decls []*expr.Decl
+	Decls []*v1alpha1.Decl
 }
 
 // Name returns the name of this option
@@ -388,7 +388,7 @@ func (b *DeclarationsBuilder) Description() string {
 }
 
 // SetDecls sets the decls parameter
-func (b *DeclarationsBuilder) SetDecls(decls []*expr.Decl) *DeclarationsBuilder {
+func (b *DeclarationsBuilder) SetDecls(decls []*v1alpha1.Decl) *DeclarationsBuilder {
 	b.Decls = decls
 	return b
 }
