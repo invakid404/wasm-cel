@@ -88,6 +88,10 @@ Enables custom validation rules during CEL expression compilation. Validators
 can report errors, warnings, or info messages that are collected during
 compilation and can prevent compilation or provide detailed feedback.
 
+**Location Information**: Each AST node provides accurate location information
+through `nodeData.location` with `line` and `column` properties, enabling
+precise error reporting.
+
 ```typescript
 import { Env, Options } from "wasm-cel";
 
@@ -109,6 +113,7 @@ const env = await Env.new({
                 {
                   severity: "warning",
                   message: "Accessing password field may not be secure",
+                  location: nodeData.location, // Precise location from AST
                 },
               ],
             };
@@ -125,6 +130,7 @@ const env = await Env.new({
                 {
                   severity: "error",
                   message: "Use of dangerousFunction is not allowed",
+                  location: nodeData.location, // Precise location from AST
                 },
               ],
             };
@@ -143,6 +149,7 @@ const env = await Env.new({
 const result = await env.compileDetailed("user.password");
 if (result.success) {
   console.log("Compiled with issues:", result.issues);
+  // Example issue: { severity: "warning", message: "...", location: { line: 1, column: 5 } }
   const evalResult = await result.program.eval({
     user: { password: "secret" },
   });
@@ -150,6 +157,31 @@ if (result.success) {
   console.log("Compilation failed:", result.error);
 }
 ```
+
+**Available Node Types and Data:**
+
+- **`select`**: Field access (`obj.field`)
+  - `nodeData.field`: Field name
+  - `nodeData.testOnly`: Whether it's a test-only access
+  - `nodeData.location`: Position in source
+- **`call`**: Function calls (`func(args)`)
+  - `nodeData.function`: Function name
+  - `nodeData.argCount`: Number of arguments
+  - `nodeData.hasTarget`: Whether it's a method call
+  - `nodeData.location`: Position in source
+- **`literal`**: Literal values (`"string"`, `42`, `true`)
+  - `nodeData.value`: The literal value
+  - `nodeData.type`: Type name
+  - `nodeData.location`: Position in source
+- **`ident`**: Variable references (`varName`)
+  - `nodeData.name`: Variable name
+  - `nodeData.location`: Position in source
+- **`list`**: List literals (`[1, 2, 3]`)
+  - `nodeData.elementCount`: Number of elements
+  - `nodeData.location`: Position in source
+- **`map`**: Map literals (`{"key": "value"}`)
+  - `nodeData.entryCount`: Number of entries
+  - `nodeData.location`: Position in source
 
 #### CrossTypeNumericComparisons
 

@@ -52,8 +52,8 @@ export interface ValidatorResult {
  * the current expression node being visited. The function should examine
  * the node and return any validation issues found.
  *
- * @param nodeType - The type of AST node being visited
- * @param nodeData - Data about the current node
+ * @param nodeType - The type of AST node being visited (e.g., "select", "call", "literal")
+ * @param nodeData - Data about the current node, including location information when available
  * @param context - Validation context with source and additional data
  * @returns Validation result with any issues found, or undefined if no issues
  */
@@ -119,7 +119,8 @@ export interface ASTValidatorsInternalConfig {
  *             return {
  *               issues: [{
  *                 severity: "warning",
- *                 message: "Accessing password field may not be secure"
+ *                 message: "Accessing password field may not be secure",
+ *                 location: nodeData.location // Use actual location from AST
  *               }]
  *             };
  *           }
@@ -130,7 +131,8 @@ export interface ASTValidatorsInternalConfig {
  *             return {
  *               issues: [{
  *                 severity: "error",
- *                 message: "Use of dangerousFunction is not allowed"
+ *                 message: "Use of dangerousFunction is not allowed",
+ *                 location: nodeData.location
  *               }]
  *             };
  *           }

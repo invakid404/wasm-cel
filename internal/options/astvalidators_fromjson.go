@@ -124,21 +124,21 @@ func (v *JSASTValidator) Validate(env *cel.Env, config cel.ValidatorConfig, a *a
 	ctx.source = "<expression>"
 
 	// Traverse the AST and call validators for each node
-	v.traverseExpr(a.Expr(), ctx)
+	v.traverseExpr(a.Expr(), ctx, a.SourceInfo())
 
 	// Process collected issues and add them to CEL issues and compilation collector
 	v.processIssues(ctx, issues, compilationCollector)
 }
 
 // traverseExpr recursively traverses the AST and calls validators for each expression node
-func (v *JSASTValidator) traverseExpr(expr ast.Expr, ctx *JSValidationContext) {
+func (v *JSASTValidator) traverseExpr(expr ast.Expr, ctx *JSValidationContext, sourceInfo *ast.SourceInfo) {
 	if expr == nil {
 		return
 	}
 
 	// Get node type and data for this expression
 	nodeType := v.getNodeType(expr)
-	nodeData := v.extractNodeData(expr)
+	nodeData := v.extractNodeData(expr, sourceInfo)
 	nodeID := expr.ID()
 
 	// Call each JavaScript validator function for this node
@@ -193,23 +193,23 @@ func (v *JSASTValidator) traverseExpr(expr ast.Expr, ctx *JSValidationContext) {
 		call := expr.AsCall()
 		// Traverse target expression (for method calls)
 		if call.Target() != nil {
-			v.traverseExpr(call.Target(), ctx)
+			v.traverseExpr(call.Target(), ctx, sourceInfo)
 		}
 		// Traverse all arguments
 		for _, arg := range call.Args() {
-			v.traverseExpr(arg, ctx)
+			v.traverseExpr(arg, ctx, sourceInfo)
 		}
 
 	case ast.SelectKind:
 		sel := expr.AsSelect()
 		// Traverse the operand expression
-		v.traverseExpr(sel.Operand(), ctx)
+		v.traverseExpr(sel.Operand(), ctx, sourceInfo)
 
 	case ast.ListKind:
 		list := expr.AsList()
 		// Traverse all list elements
 		for _, elem := range list.Elements() {
-			v.traverseExpr(elem, ctx)
+			v.traverseExpr(elem, ctx, sourceInfo)
 		}
 
 	case ast.MapKind:
@@ -219,8 +219,8 @@ func (v *JSASTValidator) traverseExpr(expr ast.Expr, ctx *JSValidationContext) {
 			// Check if it's a map entry and cast appropriately
 			if entry.Kind() == ast.MapEntryKind {
 				mapEntry := entry.AsMapEntry()
-				v.traverseExpr(mapEntry.Key(), ctx)
-				v.traverseExpr(mapEntry.Value(), ctx)
+				v.traverseExpr(mapEntry.Key(), ctx, sourceInfo)
+				v.traverseExpr(mapEntry.Value(), ctx, sourceInfo)
 			}
 		}
 
@@ -231,18 +231,18 @@ func (v *JSASTValidator) traverseExpr(expr ast.Expr, ctx *JSValidationContext) {
 			// Check if it's a struct field and cast appropriately
 			if field.Kind() == ast.StructFieldKind {
 				structField := field.AsStructField()
-				v.traverseExpr(structField.Value(), ctx)
+				v.traverseExpr(structField.Value(), ctx, sourceInfo)
 			}
 		}
 
 	case ast.ComprehensionKind:
 		comp := expr.AsComprehension()
 		// Traverse comprehension expressions
-		v.traverseExpr(comp.IterRange(), ctx)
-		v.traverseExpr(comp.AccuInit(), ctx)
-		v.traverseExpr(comp.LoopCondition(), ctx)
-		v.traverseExpr(comp.LoopStep(), ctx)
-		v.traverseExpr(comp.Result(), ctx)
+		v.traverseExpr(comp.IterRange(), ctx, sourceInfo)
+		v.traverseExpr(comp.AccuInit(), ctx, sourceInfo)
+		v.traverseExpr(comp.LoopCondition(), ctx, sourceInfo)
+		v.traverseExpr(comp.LoopStep(), ctx, sourceInfo)
+		v.traverseExpr(comp.Result(), ctx, sourceInfo)
 
 	case ast.IdentKind, ast.LiteralKind:
 		// Leaf nodes - no children to traverse
@@ -275,9 +275,19 @@ func (v *JSASTValidator) getNodeType(expr ast.Expr) string {
 }
 
 // extractNodeData extracts relevant data from an expression node for JavaScript validators
-func (v *JSASTValidator) extractNodeData(expr ast.Expr) map[string]interface{} {
+func (v *JSASTValidator) extractNodeData(expr ast.Expr, sourceInfo *ast.SourceInfo) map[string]interface{} {
 	data := make(map[string]interface{})
 	data["id"] = expr.ID()
+
+	// Add location information if available
+	if sourceInfo != nil {
+		if location := sourceInfo.GetStartLocation(expr.ID()); location != nil {
+			data["location"] = map[string]interface{}{
+				"line":   location.Line(),
+				"column": location.Column() + 1, // Convert from 0-based to 1-based column
+			}
+		}
+	}
 
 	switch expr.Kind() {
 	case ast.CallKind:

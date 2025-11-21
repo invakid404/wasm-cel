@@ -402,10 +402,7 @@ describe("CEL Environment Options", () => {
                         severity: "warning",
                         message:
                           "Field 'deprecated' is deprecated and should not be used",
-                        location: {
-                          line: 1,
-                          column: nodeData.position || 5, // Approximate column position
-                        },
+                        location: nodeData.location, // Use actual location from AST
                       },
                     ],
                   };
@@ -436,7 +433,7 @@ describe("CEL Environment Options", () => {
         message: "Field 'deprecated' is deprecated and should not be used",
         location: {
           line: 1,
-          column: 5,
+          column: 4,
         },
       });
 
@@ -445,6 +442,66 @@ describe("CEL Environment Options", () => {
         increment: 1,
       });
       expect(result).toBe(43);
+
+      compilationResult.program.destroy();
+      env.destroy();
+    });
+
+    test("should provide accurate location information from AST", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "user",
+            type: { kind: "map", keyType: "string", valueType: "string" },
+          },
+        ],
+        options: [
+          Options.astValidators({
+            validators: [
+              (nodeType, nodeData, context) => {
+                // Validate that location information is available in nodeData
+                if (nodeType === "select" && nodeData.field === "name") {
+                  // Verify that location information is present
+                  expect(nodeData.location).toBeDefined();
+                  expect(nodeData.location.line).toBe(1);
+                  expect(nodeData.location.column).toBeGreaterThan(0);
+
+                  return {
+                    issues: [
+                      {
+                        severity: "info",
+                        message: `Field access at line ${nodeData.location.line}, column ${nodeData.location.column}`,
+                        location: nodeData.location,
+                      },
+                    ],
+                  };
+                }
+                return { issues: [] };
+              },
+            ],
+            options: {
+              failOnWarning: false,
+              includeWarnings: true,
+            },
+          }),
+        ],
+      });
+
+      const compilationResult = await env.compileDetailed("user.name");
+
+      // Compilation should succeed
+      expect(compilationResult.success).toBe(true);
+      expect(compilationResult.program).toBeDefined();
+
+      // Should have exactly one info issue with location information
+      expect(compilationResult.issues).toHaveLength(1);
+      expect(compilationResult.issues[0].severity).toBe("info");
+      expect(compilationResult.issues[0].message).toMatch(
+        /Field access at line 1, column \d+/,
+      );
+      expect(compilationResult.issues[0].location).toBeDefined();
+      expect(compilationResult.issues[0].location.line).toBe(1);
+      expect(compilationResult.issues[0].location.column).toBeGreaterThan(0);
 
       compilationResult.program.destroy();
       env.destroy();
