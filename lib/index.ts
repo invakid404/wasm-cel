@@ -709,7 +709,6 @@ export { listType, mapType, CELFunction } from "./functions.js";
 export { Options } from "./options/index.js";
 export type {
   EnvOptionConfig,
-  OptionType,
   OptionalTypesConfig,
   ValidationIssue,
   ValidationContext,

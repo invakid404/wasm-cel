@@ -10,7 +10,6 @@ export type {
   OptionWithSetup,
   EnvOptionConfig,
   EnvOptionInput,
-  OptionType,
 } from "./base.js";
 
 // Re-export specific option types

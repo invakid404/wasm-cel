@@ -59,11 +59,3 @@ export type EnvOptionConfig =
  * Union type of all available option inputs (simple configs or complex options with setup)
  */
 export type EnvOptionInput = EnvOptionConfig | OptionWithSetup;
-
-/**
- * Available option types
- */
-export type OptionType =
-  | "OptionalTypes"
-  | "ASTValidators"
-  | "CrossTypeNumericComparisons";
