@@ -12,7 +12,7 @@ import { crossTypeNumericComparisons } from "./crossTypeNumericComparisons.js";
 export const Options = {
   /**
    * Create an OptionalTypes option configuration
-   * 
+   *
    * @example
    * ```typescript
    * const env = await Env.new({
@@ -25,15 +25,15 @@ export const Options = {
 
   /**
    * Create an ASTValidators option configuration
-   * 
+   *
    * This option allows you to define custom validation rules that are applied
    * during CEL expression compilation. Each validator function will be called
    * for each AST node during compilation, allowing you to implement custom
    * validation logic.
-   * 
+   *
    * @param config - Configuration for the AST validators
    * @returns An option configuration that implements OptionWithSetup
-   * 
+   *
    * @example
    * ```typescript
    * const env = await Env.new({
@@ -54,7 +54,7 @@ export const Options = {
    *         (nodeType, nodeData, context) => {
    *           if (nodeType === "call" && nodeData.function === "dangerousFunction") {
    *             context.addIssue({
-   *               severity: "error", 
+   *               severity: "error",
    *               message: "Use of dangerousFunction is not allowed"
    *             });
    *           }
@@ -73,14 +73,14 @@ export const Options = {
 
   /**
    * Create a CrossTypeNumericComparisons option configuration
-   * 
+   *
    * This option enables cross-type numeric comparisons for ordering operators
    * in CEL expressions, allowing you to compare values of different numeric types
    * using <, <=, >, >= operators (but not == or !=).
-   * 
+   *
    * @param config - Configuration for cross-type numeric comparisons
    * @returns An option configuration for enabling cross-type numeric comparisons
-   * 
+   *
    * @example
    * ```typescript
    * const env = await Env.new({
@@ -90,11 +90,11 @@ export const Options = {
    *   ],
    *   options: [Options.crossTypeNumericComparisons()]
    * });
-   * 
+   *
    * // Now you can use cross-type ordering comparisons:
    * const program = env.compile("doubleValue > intValue");
    * ```
-   * 
+   *
    * @example
    * ```typescript
    * // Explicitly disable cross-type comparisons
@@ -105,5 +105,4 @@ export const Options = {
    * ```
    */
   crossTypeNumericComparisons,
-
 } as const;

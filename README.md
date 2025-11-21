@@ -65,9 +65,12 @@ import { Env, Options } from "wasm-cel";
 
 const env = await Env.new({
   variables: [
-    { name: "data", type: { kind: "map", keyType: "string", valueType: "string" } }
+    {
+      name: "data",
+      type: { kind: "map", keyType: "string", valueType: "string" },
+    },
   ],
-  options: [Options.optionalTypes()]
+  options: [Options.optionalTypes()],
 });
 
 const program = await env.compile('data.?name.orValue("Anonymous")');
@@ -82,8 +85,11 @@ You can also extend an environment with options after it's created:
 ```typescript
 const env = await Env.new({
   variables: [
-    { name: "data", type: { kind: "map", keyType: "string", valueType: "string" } }
-  ]
+    {
+      name: "data",
+      type: { kind: "map", keyType: "string", valueType: "string" },
+    },
+  ],
 });
 
 // Add options later
@@ -99,6 +105,7 @@ console.log(result); // "Hello"
 The library supports an inverted architecture where complex options can handle their own JavaScript-side setup operations. This enables options that need to register custom functions or perform other setup tasks.
 
 **Architecture Benefits:**
+
 - Options handle their own complexity and setup operations
 - Environment class stays simple and focused
 - Easy to add new complex options without modifying core code
@@ -135,11 +142,14 @@ import { Env, Options } from "wasm-cel";
 const env = await Env.new({
   variables: [
     { name: "x", type: "int" },
-    { name: "data", type: { kind: "map", keyType: "string", valueType: "string" } },
+    {
+      name: "data",
+      type: { kind: "map", keyType: "string", valueType: "string" },
+    },
   ],
   options: [
-    Options.optionalTypes() // Enable optional syntax like data.?field
-  ]
+    Options.optionalTypes(), // Enable optional syntax like data.?field
+  ],
 });
 ```
 
@@ -177,7 +187,7 @@ Extends the environment with additional CEL environment options after creation.
 
 ```typescript
 const env = await Env.new({
-  variables: [{ name: "x", type: "int" }]
+  variables: [{ name: "x", type: "int" }],
 });
 
 // Add options after creation

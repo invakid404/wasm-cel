@@ -161,7 +161,6 @@ func extractParams(sig *types.Signature, funcName string) []OptionParam {
 	return result
 }
 
-
 func extractDocumentation(pkg *packages.Package, funcObj *types.Func) string {
 	// Try to find documentation from AST
 	for _, file := range pkg.Syntax {
@@ -417,15 +416,15 @@ func parseGoType(typ types.Type) *jen.Statement {
 			// Fallback for other basic types
 			return jen.Id(t.Name())
 		}
-	
+
 	case *types.Pointer:
 		// Handle pointer types
 		return jen.Op("*").Add(parseGoType(t.Elem()))
-	
+
 	case *types.Slice:
 		// Handle slice types
 		return jen.Index().Add(parseGoType(t.Elem()))
-	
+
 	case *types.Interface:
 		// Handle interface types
 		if t.Empty() {
@@ -433,33 +432,33 @@ func parseGoType(typ types.Type) *jen.Statement {
 		}
 		// For non-empty interfaces, we'll need the full qualified name
 		return jen.Id(t.String())
-	
+
 	case *types.Named:
 		// Handle named types (structs, interfaces, etc.)
 		obj := t.Obj()
 		pkg := obj.Pkg()
-		
+
 		if pkg == nil {
 			// Built-in type or type in current package
 			return jen.Id(obj.Name())
 		}
-		
+
 		// Qualified type from another package
 		return jen.Qual(pkg.Path(), obj.Name())
-	
+
 	case *types.Alias:
 		// Handle type aliases
 		obj := t.Obj()
 		pkg := obj.Pkg()
-		
+
 		if pkg == nil {
 			// Built-in type or type in current package
 			return jen.Id(obj.Name())
 		}
-		
+
 		// Qualified type from another package
 		return jen.Qual(pkg.Path(), obj.Name())
-	
+
 	default:
 		// Fallback for any other types
 		return jen.Id(typ.String())

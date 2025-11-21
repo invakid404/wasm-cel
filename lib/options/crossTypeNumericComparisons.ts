@@ -6,13 +6,13 @@ import type { EnvOptionConfig } from "./base.js";
 
 /**
  * Configuration for CrossTypeNumericComparisons CEL environment option
- * 
+ *
  * CrossTypeNumericComparisons makes it possible to compare across numeric types
- * using ordering operators, e.g. double < int. This enables cross-type numeric 
+ * using ordering operators, e.g. double < int. This enables cross-type numeric
  * comparisons for ordering operations in CEL expressions.
- * 
+ *
  * Note: This only enables ordering operators (<, <=, >, >=), not equality operators (==, !=).
- * 
+ *
  * When enabled, you can write expressions like:
  * - `3.14 > 3` (double > int)
  * - `42 >= 42.0` (int >= double)
@@ -28,10 +28,10 @@ export interface CrossTypeNumericComparisonsConfig {
 
 /**
  * Create a CrossTypeNumericComparisons option configuration
- * 
+ *
  * @param config - Configuration for cross-type numeric comparisons
  * @returns An option configuration for enabling cross-type numeric comparisons
- * 
+ *
  * @example
  * ```typescript
  * const env = await Env.new({
@@ -41,11 +41,11 @@ export interface CrossTypeNumericComparisonsConfig {
  *   ],
  *   options: [Options.crossTypeNumericComparisons()]
  * });
- * 
+ *
  * // Now you can use cross-type comparisons:
  * const program = env.compile("doubleValue > intValue");
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Explicitly disable cross-type comparisons
@@ -55,7 +55,9 @@ export interface CrossTypeNumericComparisonsConfig {
  * });
  * ```
  */
-export function crossTypeNumericComparisons(config: CrossTypeNumericComparisonsConfig = {}): EnvOptionConfig {
+export function crossTypeNumericComparisons(
+  config: CrossTypeNumericComparisonsConfig = {},
+): EnvOptionConfig {
   return {
     type: "CrossTypeNumericComparisons",
     params: {

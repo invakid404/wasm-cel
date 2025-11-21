@@ -205,12 +205,12 @@ describe("CEL Environment Options", () => {
 
       // Test with compileDetailed to verify warnings are exposed
       const compilationResult = await env.compileDetailed("user.password");
-      
+
       // Compilation should succeed
       expect(compilationResult.success).toBe(true);
       expect(compilationResult.program).toBeDefined();
       expect(compilationResult.error).toBeUndefined();
-      
+
       // Should have exactly one warning issue
       expect(compilationResult.issues).toHaveLength(1);
       expect(compilationResult.issues[0]).toEqual({
@@ -219,7 +219,9 @@ describe("CEL Environment Options", () => {
       });
 
       // Program should still work normally
-      const result = await compilationResult.program.eval({ user: { password: "secret123" } });
+      const result = await compilationResult.program.eval({
+        user: { password: "secret123" },
+      });
       expect(result).toBe("secret123");
 
       // Test expression without warnings
@@ -284,8 +286,10 @@ describe("CEL Environment Options", () => {
       const normalResult = await env.compileDetailed("data.name");
       expect(normalResult.success).toBe(true);
       expect(normalResult.issues).toHaveLength(0);
-      
-      const result1 = await normalResult.program.eval({ data: { name: "John" } });
+
+      const result1 = await normalResult.program.eval({
+        data: { name: "John" },
+      });
       expect(result1).toBe("John");
 
       // Test password field access (should work but trigger warning)
@@ -296,8 +300,10 @@ describe("CEL Environment Options", () => {
         severity: "warning",
         message: "Password field access detected",
       });
-      
-      const result2 = await passwordResult.program.eval({ data: { password: "secret" } });
+
+      const result2 = await passwordResult.program.eval({
+        data: { password: "secret" },
+      });
       expect(result2).toBe("secret");
 
       // Test admin field access (should fail compilation due to error)
@@ -365,8 +371,10 @@ describe("CEL Environment Options", () => {
         severity: "warning",
         message: "Secret field access detected",
       });
-      
-      const result = await afterResult.program.eval({ config: { secret: "hidden" } });
+
+      const result = await afterResult.program.eval({
+        config: { secret: "hidden" },
+      });
       expect(result).toBe("hidden");
 
       beforeResult.program.destroy();
@@ -413,12 +421,14 @@ describe("CEL Environment Options", () => {
         ],
       });
 
-      const compilationResult = await env.compileDetailed('obj.deprecated + increment');
-      
+      const compilationResult = await env.compileDetailed(
+        "obj.deprecated + increment",
+      );
+
       // Compilation should succeed
       expect(compilationResult.success).toBe(true);
       expect(compilationResult.program).toBeDefined();
-      
+
       // Should have exactly one warning with location information
       expect(compilationResult.issues).toHaveLength(1);
       expect(compilationResult.issues[0]).toEqual({
@@ -477,12 +487,14 @@ describe("CEL Environment Options", () => {
         ],
       });
 
-      const compilationResult = await env.compileDetailed('request.method == "POST"');
-      
+      const compilationResult = await env.compileDetailed(
+        'request.method == "POST"',
+      );
+
       // Compilation should succeed
       expect(compilationResult.success).toBe(true);
       expect(compilationResult.program).toBeDefined();
-      
+
       // Should have exactly one info issue with context information
       expect(compilationResult.issues).toHaveLength(1);
       expect(compilationResult.issues[0]).toEqual({
@@ -490,7 +502,9 @@ describe("CEL Environment Options", () => {
         message: "HTTP method access in expression: <expression>", // Context source is available
       });
 
-      const result = await compilationResult.program.eval({ request: { method: "POST" } });
+      const result = await compilationResult.program.eval({
+        request: { method: "POST" },
+      });
       expect(result).toBe(true);
 
       compilationResult.program.destroy();
@@ -531,7 +545,10 @@ describe("CEL Environment Options", () => {
             validators: [
               (nodeType, nodeData, context) => {
                 // Return a warning for any literal value (to test configuration)
-                if (nodeType === "literal" && typeof nodeData.value === "string") {
+                if (
+                  nodeType === "literal" &&
+                  typeof nodeData.value === "string"
+                ) {
                   return {
                     issues: [
                       {
@@ -545,7 +562,7 @@ describe("CEL Environment Options", () => {
               },
             ],
             options: {
-              failOnWarning: false,  // Warnings shouldn't fail compilation
+              failOnWarning: false, // Warnings shouldn't fail compilation
               includeWarnings: false, // Warnings shouldn't be included in results
             },
           }),
@@ -561,7 +578,12 @@ describe("CEL Environment Options", () => {
 
       // Test that an actual error still causes failure regardless of failOnWarning setting
       const envWithError = await Env.new({
-        variables: [{ name: "data", type: { kind: "map", keyType: "string", valueType: "string" } }],
+        variables: [
+          {
+            name: "data",
+            type: { kind: "map", keyType: "string", valueType: "string" },
+          },
+        ],
         options: [
           Options.astValidators({
             validators: [
@@ -588,9 +610,9 @@ describe("CEL Environment Options", () => {
       });
 
       // This should fail because errors always cause compilation failure
-      await expect(envWithError.compile('data.field == "forbidden"')).rejects.toThrow(
-        /Forbidden literal value/
-      );
+      await expect(
+        envWithError.compile('data.field == "forbidden"'),
+      ).rejects.toThrow(/Forbidden literal value/);
 
       program.destroy();
       env.destroy();
@@ -641,7 +663,9 @@ describe("CEL Environment Options", () => {
       const compilationResult = await env.compileDetailed("user.password");
       expect(compilationResult.success).toBe(false);
       expect(compilationResult.program).toBeUndefined();
-      expect(compilationResult.error).toMatch(/Access to password field is forbidden for security reasons/);
+      expect(compilationResult.error).toMatch(
+        /Access to password field is forbidden for security reasons/,
+      );
       expect(compilationResult.issues).toHaveLength(1);
       expect(compilationResult.issues[0]).toEqual({
         severity: "error",
@@ -700,7 +724,8 @@ describe("CEL Environment Options", () => {
       expect(compilationResult.issues).toHaveLength(1);
       expect(compilationResult.issues[0]).toEqual({
         severity: "warning",
-        message: "Field 'oldField' is deprecated and will be removed in future versions",
+        message:
+          "Field 'oldField' is deprecated and will be removed in future versions",
       });
 
       program.destroy();
@@ -752,22 +777,30 @@ describe("CEL Environment Options", () => {
       );
 
       // Test with compileDetailed() - should return failure with both CEL error and original warning
-      const compilationResult = await env.compileDetailed("config.experimental");
+      const compilationResult = await env.compileDetailed(
+        "config.experimental",
+      );
       expect(compilationResult.success).toBe(false);
       expect(compilationResult.program).toBeUndefined();
-      expect(compilationResult.error).toMatch(/Use of experimental features is not recommended/);
+      expect(compilationResult.error).toMatch(
+        /Use of experimental features is not recommended/,
+      );
       expect(compilationResult.issues).toHaveLength(2);
-      
+
       // Should have both the CEL error (from failOnWarning conversion) and original warning
-      const celError = compilationResult.issues.find(issue => issue.severity === "error");
-      const originalWarning = compilationResult.issues.find(issue => issue.severity === "warning");
-      
+      const celError = compilationResult.issues.find(
+        (issue) => issue.severity === "error",
+      );
+      const originalWarning = compilationResult.issues.find(
+        (issue) => issue.severity === "warning",
+      );
+
       expect(celError).toEqual({
         severity: "error", // Converted to error by CEL when failOnWarning: true
         message: "Use of experimental features is not recommended",
         location: { line: 1, column: 6 }, // CEL provides location info
       });
-      
+
       expect(originalWarning).toEqual({
         severity: "warning", // Original severity preserved
         message: "Use of experimental features is not recommended",
@@ -846,28 +879,34 @@ describe("CEL Environment Options", () => {
       });
 
       // Test expression with warnings and info (no errors)
-      const multiIssueResult = await env.compileDetailed("user.password && user.deprecated");
-      
+      const multiIssueResult = await env.compileDetailed(
+        "user.password && user.deprecated",
+      );
+
       expect(multiIssueResult.success).toBe(true); // Should succeed because no errors
       expect(multiIssueResult.program).toBeDefined();
       expect(multiIssueResult.error).toBeUndefined();
-      
+
       // Should have exactly 2 issues (warning and info)
       expect(multiIssueResult.issues).toHaveLength(2);
-      
+
       // Verify each issue is properly reported
       const issues = multiIssueResult.issues;
-      
+
       // Find each issue by message (order may vary)
-      const passwordIssue = issues.find(i => i.message === "Password field access detected");
-      const deprecatedIssue = issues.find(i => i.message === "This field is deprecated");
-      
+      const passwordIssue = issues.find(
+        (i) => i.message === "Password field access detected",
+      );
+      const deprecatedIssue = issues.find(
+        (i) => i.message === "This field is deprecated",
+      );
+
       expect(passwordIssue).toEqual({
         severity: "warning",
         message: "Password field access detected",
         location: { line: 1, column: 5 },
       });
-      
+
       expect(deprecatedIssue).toEqual({
         severity: "info",
         message: "This field is deprecated",
@@ -892,31 +931,31 @@ describe("CEL Environment Options", () => {
 
       // Test parallel compilations to ensure proper isolation
       const parallelResults = await Promise.all([
-        env.compileDetailed("user.password"),     // Should have 1 warning
-        env.compileDetailed("user.deprecated"),   // Should have 1 info
-        env.compileDetailed("admin.adminToken"),  // Should have 1 error (fail)
-        env.compileDetailed("user.name"),         // Should have 0 issues
+        env.compileDetailed("user.password"), // Should have 1 warning
+        env.compileDetailed("user.deprecated"), // Should have 1 info
+        env.compileDetailed("admin.adminToken"), // Should have 1 error (fail)
+        env.compileDetailed("user.name"), // Should have 0 issues
       ]);
 
       expect(parallelResults[0].success).toBe(true);
       expect(parallelResults[0].issues).toHaveLength(1);
       expect(parallelResults[0].issues[0].severity).toBe("warning");
-      
+
       expect(parallelResults[1].success).toBe(true);
       expect(parallelResults[1].issues).toHaveLength(1);
       expect(parallelResults[1].issues[0].severity).toBe("info");
-      
+
       expect(parallelResults[2].success).toBe(false); // Error causes failure
       expect(parallelResults[2].issues).toHaveLength(1);
       expect(parallelResults[2].issues[0].severity).toBe("error");
-      
+
       expect(parallelResults[3].success).toBe(true);
       expect(parallelResults[3].issues).toHaveLength(0);
 
       // Clean up all programs (skip failed compilations)
       multiIssueResult.program.destroy();
       cleanResult.program.destroy();
-      parallelResults.forEach(result => result.program?.destroy());
+      parallelResults.forEach((result) => result.program?.destroy());
       env.destroy();
     });
   });
@@ -1018,14 +1057,46 @@ describe("CEL Environment Options", () => {
 
       // Test all supported comparison operators (CrossTypeNumericComparisons only supports ordering operators, not equality)
       const tests = [
-        { expr: "doubleValue > intValue", vars: { doubleValue: 42.1, intValue: 42, uintValue: 1 }, expected: true },
-        { expr: "doubleValue >= intValue", vars: { doubleValue: 42.0, intValue: 42, uintValue: 1 }, expected: true },
-        { expr: "doubleValue < intValue", vars: { doubleValue: 41.9, intValue: 42, uintValue: 1 }, expected: true },
-        { expr: "doubleValue <= intValue", vars: { doubleValue: 42.0, intValue: 42, uintValue: 1 }, expected: true },
-        { expr: "intValue > uintValue", vars: { doubleValue: 1.0, intValue: 42, uintValue: 41 }, expected: true },
-        { expr: "uintValue < doubleValue", vars: { doubleValue: 42.1, intValue: 1, uintValue: 42 }, expected: true },
-        { expr: "intValue >= doubleValue", vars: { doubleValue: 41.9, intValue: 42, uintValue: 1 }, expected: true },
-        { expr: "uintValue <= intValue", vars: { doubleValue: 1.0, intValue: 42, uintValue: 41 }, expected: true },
+        {
+          expr: "doubleValue > intValue",
+          vars: { doubleValue: 42.1, intValue: 42, uintValue: 1 },
+          expected: true,
+        },
+        {
+          expr: "doubleValue >= intValue",
+          vars: { doubleValue: 42.0, intValue: 42, uintValue: 1 },
+          expected: true,
+        },
+        {
+          expr: "doubleValue < intValue",
+          vars: { doubleValue: 41.9, intValue: 42, uintValue: 1 },
+          expected: true,
+        },
+        {
+          expr: "doubleValue <= intValue",
+          vars: { doubleValue: 42.0, intValue: 42, uintValue: 1 },
+          expected: true,
+        },
+        {
+          expr: "intValue > uintValue",
+          vars: { doubleValue: 1.0, intValue: 42, uintValue: 41 },
+          expected: true,
+        },
+        {
+          expr: "uintValue < doubleValue",
+          vars: { doubleValue: 42.1, intValue: 1, uintValue: 42 },
+          expected: true,
+        },
+        {
+          expr: "intValue >= doubleValue",
+          vars: { doubleValue: 41.9, intValue: 42, uintValue: 1 },
+          expected: true,
+        },
+        {
+          expr: "uintValue <= intValue",
+          vars: { doubleValue: 1.0, intValue: 42, uintValue: 41 },
+          expected: true,
+        },
       ];
 
       for (const test of tests) {
@@ -1048,7 +1119,9 @@ describe("CEL Environment Options", () => {
       });
 
       // Test with zero values
-      const program1 = await env.compile("intValue <= doubleValue && doubleValue <= intValue");
+      const program1 = await env.compile(
+        "intValue <= doubleValue && doubleValue <= intValue",
+      );
       const result1 = await program1.eval({ intValue: 0, doubleValue: 0.0 });
       expect(result1).toBe(true);
 
@@ -1080,9 +1153,9 @@ describe("CEL Environment Options", () => {
 
       // Complex expression with multiple cross-type comparisons
       const program = await env.compile(
-        "intValue > 0 && doubleValue >= threshold && intValue < (doubleValue + doubleValue)"
+        "intValue > 0 && doubleValue >= threshold && intValue < (doubleValue + doubleValue)",
       );
-      
+
       const result = await program.eval({
         intValue: 5,
         doubleValue: 3.0,
@@ -1113,7 +1186,8 @@ describe("CEL Environment Options", () => {
       });
       await env2.extend([Options.crossTypeNumericComparisons()]);
 
-      const expression = "doubleValue > intValue && intValue >= (doubleValue - 0.15) && intValue <= (doubleValue - 0.13)";
+      const expression =
+        "doubleValue > intValue && intValue >= (doubleValue - 0.15) && intValue <= (doubleValue - 0.13)";
       const variables = { intValue: 3, doubleValue: 3.14 };
 
       const program1 = await env1.compile(expression);

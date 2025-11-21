@@ -112,7 +112,7 @@ export interface CompilationIssue {
   location?: {
     /** Line number (1-based) */
     line?: number;
-    /** Column number (1-based) */  
+    /** Column number (1-based) */
     column?: number;
     /** Character offset in the source */
     offset?: number;

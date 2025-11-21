@@ -1,6 +1,6 @@
 /**
  * CEL Environment Options
- * 
+ *
  * This module contains TypeScript definitions for configurable CEL environment options.
  */
 

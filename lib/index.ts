@@ -417,7 +417,7 @@ export class Env {
    * @param expr - The CEL expression to compile
    * @returns Promise resolving to detailed compilation results
    * @throws Error if environment has been destroyed
-   * 
+   *
    * @example
    * ```typescript
    * const result = await env.compileDetailed("x + y");
@@ -433,7 +433,9 @@ export class Env {
    * }
    * ```
    */
-  async compileDetailed(expr: string): Promise<import("./types.js").CompilationResult> {
+  async compileDetailed(
+    expr: string,
+  ): Promise<import("./types.js").CompilationResult> {
     if (this.destroyed) {
       throw new Error("Environment has been destroyed");
     }
@@ -456,7 +458,7 @@ export class Env {
             success: false,
             error: result.error,
             issues: result.issues || [],
-            program: undefined
+            program: undefined,
           });
         } else if (result.programID) {
           // Compilation succeeded (possibly with warnings)
@@ -464,7 +466,7 @@ export class Env {
             success: true,
             error: undefined,
             issues: result.issues || [],
-            program: new Program(result.programID)
+            program: new Program(result.programID),
           });
         } else {
           // Unexpected state
@@ -472,7 +474,7 @@ export class Env {
             success: false,
             error: "Compilation failed: no programID returned",
             issues: result.issues || [],
-            program: undefined
+            program: undefined,
           });
         }
       } catch (err) {
@@ -481,7 +483,7 @@ export class Env {
           success: false,
           error: `WASM call failed: ${error.message}`,
           issues: [],
-          program: undefined
+          program: undefined,
         });
       }
     });
@@ -541,18 +543,20 @@ export class Env {
    * @param options - Array of CEL environment option configurations or complex options with setup
    * @returns Promise that resolves when the environment has been extended
    * @throws Error if extension fails or environment has been destroyed
-   * 
+   *
    * @example
    * ```typescript
    * const env = await Env.new({
    *   variables: [{ name: "x", type: "int" }]
    * });
-   * 
+   *
    * // Add options after creation
    * await env.extend([Options.optionalTypes()]);
    * ```
    */
-  async extend(options: import("./options/index.js").EnvOptionInput[]): Promise<void> {
+  async extend(
+    options: import("./options/index.js").EnvOptionInput[],
+  ): Promise<void> {
     return this._extendWithOptions(options);
   }
 
@@ -561,7 +565,9 @@ export class Env {
    * This method delegates to options that implement OptionWithSetup for complex operations
    * @private
    */
-  private async _extendWithOptions(options: import("./options/index.js").EnvOptionInput[]): Promise<void> {
+  private async _extendWithOptions(
+    options: import("./options/index.js").EnvOptionInput[],
+  ): Promise<void> {
     if (this.destroyed) {
       throw new Error("Environment has been destroyed");
     }
@@ -574,14 +580,20 @@ export class Env {
 
     // Process options: delegate to options that can handle their own setup
     const processedOptions: import("./options/index.js").EnvOptionConfig[] = [];
-    
+
     for (const option of options) {
       // Check if this option implements OptionWithSetup
-      if ('setupAndProcess' in option && typeof option.setupAndProcess === 'function') {
+      if (
+        "setupAndProcess" in option &&
+        typeof option.setupAndProcess === "function"
+      ) {
         // Let the option handle its own complex setup operations
         const setupEnv: import("./options/index.js").OptionSetupEnvironment = {
           getID: () => this.getID(),
-          registerFunction: async (name: string, impl: (...args: any[]) => any): Promise<string> => {
+          registerFunction: async (
+            name: string,
+            impl: (...args: any[]) => any,
+          ): Promise<string> => {
             if (this.destroyed) {
               throw new Error("Environment has been destroyed");
             }
@@ -590,9 +602,13 @@ export class Env {
             const implID = `${name}_${this.envID}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
             // Register the JavaScript function implementation
-            const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+            const globalObj =
+              typeof globalThis !== "undefined" ? globalThis : global;
             if (typeof globalObj.registerCELFunction === "function") {
-              const registerResult = globalObj.registerCELFunction(implID, impl);
+              const registerResult = globalObj.registerCELFunction(
+                implID,
+                impl,
+              );
               if (registerResult.error) {
                 throw new Error(
                   `Failed to register function ${name}: ${registerResult.error}`,
@@ -612,7 +628,9 @@ export class Env {
         processedOptions.push(processedOption);
       } else {
         // Simple option configuration, pass through directly
-        processedOptions.push(option as import("./options/index.js").EnvOptionConfig);
+        processedOptions.push(
+          option as import("./options/index.js").EnvOptionConfig,
+        );
       }
     }
 
@@ -620,7 +638,8 @@ export class Env {
 
     return new Promise<void>((resolve, reject) => {
       try {
-        const globalObj = typeof globalThis !== "undefined" ? globalThis : global;
+        const globalObj =
+          typeof globalThis !== "undefined" ? globalThis : global;
         const result = globalObj.extendEnv(this.envID, serializedOptions);
 
         if (result.error) {
@@ -688,13 +707,13 @@ export type {
 
 export { listType, mapType, CELFunction } from "./functions.js";
 export { Options } from "./options/index.js";
-export type { 
-  EnvOptionConfig, 
+export type {
+  EnvOptionConfig,
   OptionType,
   OptionalTypesConfig,
   ValidationIssue,
   ValidationContext,
   ValidatorResult,
   ASTValidatorFunction,
-  ASTValidatorsConfig
+  ASTValidatorsConfig,
 } from "./options/index.js";

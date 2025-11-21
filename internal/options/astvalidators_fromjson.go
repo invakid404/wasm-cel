@@ -84,7 +84,6 @@ func (ctx *JSValidationContext) GetIssuesWithID() []JSValidationIssueWithID {
 	return ctx.issuesWithID
 }
 
-
 // JSASTValidator implements cel.ASTValidator using JavaScript functions
 type JSASTValidator struct {
 	validatorFunctionIds []string
@@ -105,7 +104,7 @@ func (v *JSASTValidator) Validate(env *cel.Env, config cel.ValidatorConfig, a *a
 
 	// Use the filename side-channel approach to retrieve the compilation context
 	var compilationCollector CompilationIssueAdder
-	
+
 	// Get the compilation ID from the source description (filename side-channel)
 	if sourceInfo := a.SourceInfo(); sourceInfo != nil {
 		compilationID := sourceInfo.Description()
@@ -120,7 +119,7 @@ func (v *JSASTValidator) Validate(env *cel.Env, config cel.ValidatorConfig, a *a
 		source:       "<expression>", // Source content is not directly accessible from SourceInfo
 		contextData:  make(map[string]interface{}),
 	}
-	
+
 	// Set source content (SourceInfo doesn't directly expose the original text)
 	ctx.source = "<expression>"
 
@@ -150,7 +149,7 @@ func (v *JSASTValidator) traverseExpr(expr ast.Expr, ctx *JSValidationContext) {
 				"source":      ctx.GetSource(),
 				"contextData": ctx.GetContextData(),
 			}
-			
+
 			args := []interface{}{nodeType, nodeData, jsContext}
 			result, err := jsFunctionCaller.CallJSFunction(functionId, args)
 			if err != nil {
@@ -368,7 +367,7 @@ func (v *JSASTValidator) processIssues(ctx *JSValidationContext, issues *cel.Iss
 	for _, issueWithID := range ctx.GetIssuesWithID() {
 		issue := issueWithID.JSValidationIssue
 		nodeID := issueWithID.NodeID
-		
+
 		// Skip warnings if not included
 		if !v.includeWarnings && strings.ToLower(issue.Severity) == "warning" {
 			continue

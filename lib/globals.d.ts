@@ -61,7 +61,6 @@ type DestroyProgramFunction = (programID: string) => {
   error?: string;
 };
 
-
 type GoConstructor = {
   new (): {
     importObject: WebAssembly.Imports;

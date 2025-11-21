@@ -2,7 +2,11 @@
  * ASTValidators CEL environment option
  */
 
-import type { OptionSetupEnvironment, OptionWithSetup, EnvOptionConfig } from "./base.js";
+import type {
+  OptionSetupEnvironment,
+  OptionWithSetup,
+  EnvOptionConfig,
+} from "./base.js";
 
 /**
  * Represents an issue found during AST validation
@@ -43,25 +47,25 @@ export interface ValidatorResult {
 
 /**
  * A user-defined AST validator function
- * 
+ *
  * This function will be called during AST validation with information about
  * the current expression node being visited. The function should examine
  * the node and return any validation issues found.
- * 
+ *
  * @param nodeType - The type of AST node being visited
- * @param nodeData - Data about the current node  
+ * @param nodeData - Data about the current node
  * @param context - Validation context with source and additional data
  * @returns Validation result with any issues found, or undefined if no issues
  */
 export type ASTValidatorFunction = (
   nodeType: string,
   nodeData: Record<string, any>,
-  context: ValidationContext
+  context: ValidationContext,
 ) => ValidatorResult | undefined;
 
 /**
  * Configuration for ASTValidators CEL environment option
- * 
+ *
  * ASTValidators allow you to define custom validation rules that are applied
  * during CEL expression compilation. Each validator is implemented as an
  * ExprVisitor that examines AST nodes and reports validation issues.
@@ -93,15 +97,15 @@ export interface ASTValidatorsInternalConfig {
 
 /**
  * Create an ASTValidators option configuration
- * 
+ *
  * This option allows you to define custom validation rules that are applied
  * during CEL expression compilation. Each validator function will be called
  * for each AST node during compilation, allowing you to implement custom
  * validation logic.
- * 
+ *
  * @param config - Configuration for the AST validators
  * @returns An option configuration that implements OptionWithSetup
- * 
+ *
  * @example
  * ```typescript
  * const env = await Env.new({
@@ -125,17 +129,17 @@ export interface ASTValidatorsInternalConfig {
  *           if (nodeType === "call" && nodeData.function === "dangerousFunction") {
  *             return {
  *               issues: [{
- *                 severity: "error", 
+ *                 severity: "error",
  *                 message: "Use of dangerousFunction is not allowed"
  *               }]
  *             };
  *           }
  *         }
  *       ],
-       *       options: {
-       *         failOnWarning: true,
-       *         includeWarnings: true
-       *       }
+ *       options: {
+ *         failOnWarning: true,
+ *         includeWarnings: true
+ *       }
  *     })
  *   ]
  * });
@@ -143,14 +147,16 @@ export interface ASTValidatorsInternalConfig {
  */
 export function astValidators(config: ASTValidatorsConfig): OptionWithSetup {
   return {
-    async setupAndProcess(env: OptionSetupEnvironment): Promise<EnvOptionConfig> {
+    async setupAndProcess(
+      env: OptionSetupEnvironment,
+    ): Promise<EnvOptionConfig> {
       // Register each validator function with the environment
       const validatorFunctionIds: string[] = [];
-      
+
       for (let i = 0; i < config.validators.length; i++) {
         const validator = config.validators[i];
         const baseName = `__ast_validator_${i}`;
-        
+
         // Register the validator function and get the actual implementation ID
         const actualImplId = await env.registerFunction(baseName, validator);
         validatorFunctionIds.push(actualImplId);

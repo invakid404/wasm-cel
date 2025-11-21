@@ -11,8 +11,8 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
-	"github.com/invakid404/wasm-cel/internal/wasmenv"
 	commonTypes "github.com/invakid404/wasm-cel/internal/common"
+	"github.com/invakid404/wasm-cel/internal/wasmenv"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
@@ -97,10 +97,6 @@ func GetCompilationContextAdder(compilationID string) commonTypes.CompilationIss
 func UnregisterCompilationContext(compilationID string) {
 	compilationRegistry.Delete(compilationID)
 }
-
-
-
-
 
 type ValidatorIssue = commonTypes.ValidatorIssue
 
@@ -270,22 +266,22 @@ func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSO
 	var env *cel.Env
 	var err error
 	opts := []cel.EnvOption{}
-	
+
 	// Add variable declarations
 	if len(celVarDecls) > 0 {
 		opts = append(opts, cel.Declarations(celVarDecls...))
 	}
-	
+
 	// Add function declarations
 	if len(funcDecls) > 0 {
 		opts = append(opts, cel.Declarations(funcDecls...))
 	}
-	
+
 	// Add function implementations
 	if len(funcImpls) > 0 {
 		opts = append(opts, funcImpls...)
 	}
-	
+
 	// Generate a unique environment ID first (needed for options creation)
 	envIDCounter++
 	envID := fmt.Sprintf("env_%d", envIDCounter)
@@ -417,15 +413,15 @@ func CompileDetailed(envID string, exprStr string) map[string]interface{} {
 
 	// Create a compilation-scoped issue collector
 	compilationCollector := NewCompilationIssueCollector()
-	
+
 	// Generate a unique compilation ID (using the filename side-channel pattern)
 	compilationIDCounter++
 	compilationID := fmt.Sprintf("comp_%d_%p", compilationIDCounter, &compilationCollector)
-	
+
 	// Register the compilation context
 	RegisterCompilationContext(compilationID, compilationCollector)
 	defer UnregisterCompilationContext(compilationID) // Important: cleanup to prevent memory leaks
-	
+
 	// Create source with compilation ID as the description (filename side-channel)
 	source := common.NewStringSource(exprStr, compilationID)
 
@@ -434,10 +430,10 @@ func CompileDetailed(envID string, exprStr string) map[string]interface{} {
 	if issues.Err() == nil {
 		ast, issues = envState.env.Check(ast)
 	}
-	
+
 	// Convert all issues to JavaScript-compatible format
 	var jsIssues []interface{}
-	
+
 	// Add CEL built-in issues first
 	if issues != nil {
 		for _, err := range issues.Errors() {
@@ -451,7 +447,7 @@ func CompileDetailed(envID string, exprStr string) map[string]interface{} {
 			})
 		}
 	}
-	
+
 	// Add custom validator issues from this compilation
 	for _, validatorIssue := range compilationCollector.GetValidatorIssues() {
 		jsIssue := map[string]interface{}{
@@ -962,4 +958,3 @@ func DestroyProgram(programID string) map[string]interface{} {
 		"error":   nil,
 	}
 }
-
