@@ -17,6 +17,12 @@ type OptionConfig struct {
 // CreateOptionsFromJSON creates CEL environment options from JSON configuration
 // Uses the registry to find options that implement FromJSON interface
 func CreateOptionsFromJSON(configJSON string) ([]cel.EnvOption, error) {
+	return CreateOptionsFromJSONWithEnvID(configJSON, "")
+}
+
+// CreateOptionsFromJSONWithEnvID creates CEL environment options from JSON configuration with environment ID
+// Uses the registry to find options that implement FromJSON interface
+func CreateOptionsFromJSONWithEnvID(configJSON string, envID string) ([]cel.EnvOption, error) {
 	var configs []OptionConfig
 	if err := json.Unmarshal([]byte(configJSON), &configs); err != nil {
 		return nil, fmt.Errorf("failed to parse options configuration: %w", err)
@@ -39,6 +45,11 @@ func CreateOptionsFromJSON(configJSON string) ([]cel.EnvOption, error) {
 		// Configure the builder from JSON parameters
 		if err := fromJSONBuilder.FromJSON(config.Params); err != nil {
 			return nil, fmt.Errorf("failed to configure option %s from JSON: %w", config.Type, err)
+		}
+
+		// Set environment ID if the builder supports it
+		if envIDAware, ok := builder.(interface{ SetEnvID(string) }); ok && envID != "" {
+			envIDAware.SetEnvID(envID)
 		}
 
 		// Build the CEL environment option

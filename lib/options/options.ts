@@ -1,0 +1,73 @@
+/**
+ * Helper functions for creating option configurations
+ */
+
+import { optionalTypes } from "./optionalTypes.js";
+import { astValidators } from "./astValidators.js";
+
+/**
+ * Helper object containing functions for creating CEL environment option configurations
+ */
+export const Options = {
+  /**
+   * Create an OptionalTypes option configuration
+   * 
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [{ name: "x", type: "int" }],
+   *   options: [Options.optionalTypes()]
+   * });
+   * ```
+   */
+  optionalTypes,
+
+  /**
+   * Create an ASTValidators option configuration
+   * 
+   * This option allows you to define custom validation rules that are applied
+   * during CEL expression compilation. Each validator function will be called
+   * for each AST node during compilation, allowing you to implement custom
+   * validation logic.
+   * 
+   * @param config - Configuration for the AST validators
+   * @returns An option configuration that implements OptionWithSetup
+   * 
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   variables: [{ name: "user", type: { kind: "map", keyType: "string", valueType: "string" } }],
+   *   options: [
+   *     Options.astValidators({
+   *       validators: [
+   *         // Validator that warns about accessing potentially unsafe fields
+   *         (nodeType, nodeData, context) => {
+   *           if (nodeType === "select" && nodeData.field === "password") {
+   *             context.addIssue({
+   *               severity: "warning",
+   *               message: "Accessing password field may not be secure"
+   *             });
+   *           }
+   *         },
+   *         // Validator that prevents certain function calls
+   *         (nodeType, nodeData, context) => {
+   *           if (nodeType === "call" && nodeData.function === "dangerousFunction") {
+   *             context.addIssue({
+   *               severity: "error", 
+   *               message: "Use of dangerousFunction is not allowed"
+   *             });
+   *           }
+   *         }
+   *       ],
+   *       options: {
+   *         failOnError: true,
+   *         includeWarnings: true
+   *       }
+   *     })
+   *   ]
+   * });
+   * ```
+   */
+  astValidators,
+
+} as const;
