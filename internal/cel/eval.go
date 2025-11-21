@@ -734,7 +734,21 @@ func ValueToJSON(val ref.Val) interface{} {
 		return nil
 	}
 
+	// Handle null values explicitly
+	if val == types.NullValue {
+		return nil
+	}
+
 	switch v := val.(type) {
+	case *types.Optional:
+		// Handle CEL optional types properly
+		if v.HasValue() {
+			// Recursively convert the wrapped value
+			return ValueToJSON(v.GetValue())
+		} else {
+			// Optional with no value (optional.none())
+			return nil
+		}
 	case types.Bool:
 		return bool(v)
 	case types.Int:
@@ -765,7 +779,7 @@ func ValueToJSON(val ref.Val) interface{} {
 		}
 		return result
 	default:
-		// For unknown types, try to convert to string
+		// For other unknown types, convert to string
 		return fmt.Sprintf("%v", val)
 	}
 }
