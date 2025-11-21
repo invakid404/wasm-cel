@@ -88,6 +88,8 @@ export interface EnvOptions {
   variables?: VariableDeclaration[];
   /** Custom functions to register */
   functions?: CELFunctionDefinition[];
+  /** Environment options (like OptionalTypes) */
+  options?: import("./options/index.js").EnvOptionInput[];
 }
 
 /**
@@ -96,4 +98,37 @@ export interface EnvOptions {
 export interface TypeCheckResult {
   /** The inferred type of the expression */
   type: CELTypeDef;
+}
+
+/**
+ * Represents a compilation issue (error, warning, or info)
+ */
+export interface CompilationIssue {
+  /** Severity level of the issue */
+  severity: "error" | "warning" | "info";
+  /** Human-readable description of the issue */
+  message: string;
+  /** Source location information */
+  location?: {
+    /** Line number (1-based) */
+    line?: number;
+    /** Column number (1-based) */
+    column?: number;
+    /** Character offset in the source */
+    offset?: number;
+  };
+}
+
+/**
+ * Detailed result of compiling a CEL expression
+ */
+export interface CompilationResult {
+  /** Whether compilation succeeded */
+  success: boolean;
+  /** Error message if compilation failed completely */
+  error?: string;
+  /** All issues found during compilation (errors, warnings, info) */
+  issues: CompilationIssue[];
+  /** The compiled program if compilation succeeded */
+  program?: import("./index.js").Program;
 }

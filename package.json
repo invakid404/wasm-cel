@@ -12,15 +12,14 @@
     }
   },
   "scripts": {
-    "build": "GOOS=js GOARCH=wasm go build -o main.wasm ./cmd/wasm",
+    "build": "GOOS=js GOARCH=wasm go build -ldflags '-s -w' -o main.wasm ./cmd/wasm",
     "build:copy-wasm-exec": "node scripts/copy-wasm-exec.js",
     "build:ts": "tsc",
     "build:all": "pnpm run build && pnpm run build:copy-wasm-exec && pnpm run build:ts",
     "prepublishOnly": "pnpm run build:all",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
-    "example": "node examples/example.js"
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
   "keywords": [
     "cel",
@@ -42,7 +41,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
+  "files": [
+    "dist/**/*",
+    "main.wasm",
+    "wasm_exec.cjs",
+    "README.md"
+  ],
   "devDependencies": {
     "@types/node": "^20.0.0",
     "jest": "^30.2.0",

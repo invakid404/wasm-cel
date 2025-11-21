@@ -3,12 +3,16 @@ package cel
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
+	"github.com/google/cel-go/common"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
+	commonTypes "github.com/invakid404/wasm-cel/internal/common"
+	"github.com/invakid404/wasm-cel/internal/wasmenv"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
@@ -43,6 +47,59 @@ func SetJSFunctionCaller(caller JSFunctionCaller) {
 	jsFunctionCaller = caller
 }
 
+// Global registry for compilation contexts using the "Filename Side-Channel" pattern
+// Maps unique compilation ID -> issue collector
+var compilationRegistry sync.Map
+
+// Use common types to avoid duplication
+type CompilationIssueCollector = commonTypes.CompilationIssueCollector
+
+// CompilationIssueCollectorImpl implements CompilationIssueCollector
+type CompilationIssueCollectorImpl struct {
+	issues []ValidatorIssue
+}
+
+func (c *CompilationIssueCollectorImpl) AddValidatorIssue(issue ValidatorIssue) {
+	c.issues = append(c.issues, issue)
+}
+
+func (c *CompilationIssueCollectorImpl) GetValidatorIssues() []ValidatorIssue {
+	return c.issues
+}
+
+// NewCompilationIssueCollector creates a new compilation-scoped issue collector
+func NewCompilationIssueCollector() CompilationIssueCollector {
+	return &CompilationIssueCollectorImpl{
+		issues: make([]ValidatorIssue, 0),
+	}
+}
+
+// RegisterCompilationContext registers a compilation context with a unique ID
+func RegisterCompilationContext(compilationID string, collector CompilationIssueCollector) {
+	compilationRegistry.Store(compilationID, collector)
+}
+
+// GetCompilationContext retrieves a compilation context by ID
+func GetCompilationContext(compilationID string) CompilationIssueCollector {
+	if val, ok := compilationRegistry.Load(compilationID); ok {
+		return val.(CompilationIssueCollector)
+	}
+	return nil
+}
+
+// GetCompilationContextAdder retrieves a compilation context by ID as an adder interface
+// This is used by the options package which only needs to add issues
+func GetCompilationContextAdder(compilationID string) commonTypes.CompilationIssueAdder {
+	return GetCompilationContext(compilationID)
+}
+
+// UnregisterCompilationContext removes a compilation context (important for cleanup)
+func UnregisterCompilationContext(compilationID string) {
+	compilationRegistry.Delete(compilationID)
+}
+
+type ValidatorIssue = commonTypes.ValidatorIssue
+
 // EnvState holds a CEL environment
 type EnvState struct {
 	env       *cel.Env
@@ -64,11 +121,12 @@ type FunctionRefCount struct {
 
 // Global registries for environments and programs
 var (
-	envs             = make(map[string]*EnvState)
-	programs         = make(map[string]*ProgramState)
-	functionRefs     = make(map[string]*FunctionRefCount) // Track function reference counts
-	envIDCounter     int64
-	programIDCounter int64
+	envs                 = make(map[string]*EnvState)
+	programs             = make(map[string]*ProgramState)
+	functionRefs         = make(map[string]*FunctionRefCount) // Track function reference counts
+	envIDCounter         int64
+	programIDCounter     int64
+	compilationIDCounter int64
 )
 
 // VarDecl represents a variable declaration with a name and type
@@ -80,6 +138,54 @@ type VarDecl struct {
 // CreateEnv creates a new CEL environment with variable declarations and function definitions
 // Returns an environment ID that can be used for compilation
 func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{} {
+	return CreateEnvWithOptions(varDecls, funcDefs, nil)
+}
+
+// ExtendEnv extends an existing environment with additional options
+// This allows adding options that require JavaScript functions after the environment is created
+func ExtendEnv(envID string, optionsJSON string) map[string]interface{} {
+	envState, ok := envs[envID]
+	if !ok {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment not found: %s", envID),
+		}
+	}
+
+	// Check if environment has been destroyed
+	if envState.destroyed {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("environment has been destroyed: %s", envID),
+		}
+	}
+
+	// Parse and create the new options with environment ID
+	envOptions, err := wasmenv.CreateOptionsFromJSONWithEnvID(optionsJSON, envID)
+	if err != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("failed to create environment options: %v", err),
+		}
+	}
+
+	// Extend the existing environment with new options
+	newEnv, err := envState.env.Extend(envOptions...)
+	if err != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("failed to extend environment: %v", err),
+		}
+	}
+
+	// Replace the environment pointer with the extended environment
+	envState.env = newEnv
+
+	return map[string]interface{}{
+		"success": true,
+		"error":   nil,
+	}
+}
+
+// CreateEnvWithOptions creates a new CEL environment with variable declarations, function definitions, and environment options
+// Returns an environment ID that can be used for compilation
+func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSON *string) map[string]interface{} {
 	// Convert variable declarations to CEL declarations
 	var celVarDecls []*exprpb.Decl
 	for _, varDecl := range varDecls {
@@ -156,18 +262,39 @@ func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{
 		funcImpls = append(funcImpls, funcImpl)
 	}
 
-	// Create CEL environment with variable declarations and function declarations
+	// Create CEL environment with variable declarations, function declarations, and options
 	var env *cel.Env
 	var err error
 	opts := []cel.EnvOption{}
+
+	// Add variable declarations
 	if len(celVarDecls) > 0 {
 		opts = append(opts, cel.Declarations(celVarDecls...))
 	}
+
+	// Add function declarations
 	if len(funcDecls) > 0 {
 		opts = append(opts, cel.Declarations(funcDecls...))
 	}
+
+	// Add function implementations
 	if len(funcImpls) > 0 {
 		opts = append(opts, funcImpls...)
+	}
+
+	// Generate a unique environment ID first (needed for options creation)
+	envIDCounter++
+	envID := fmt.Sprintf("env_%d", envIDCounter)
+
+	// Add environment options from configuration
+	if optionsJSON != nil && *optionsJSON != "" {
+		envOptions, err := wasmenv.CreateOptionsFromJSONWithEnvID(*optionsJSON, envID)
+		if err != nil {
+			return map[string]interface{}{
+				"error": fmt.Sprintf("failed to create environment options: %v", err),
+			}
+		}
+		opts = append(opts, envOptions...)
 	}
 
 	if len(opts) > 0 {
@@ -188,18 +315,7 @@ func CreateEnv(varDecls []VarDecl, funcDefs []FunctionDef) map[string]interface{
 		// Initialize function reference count (starts at 0, will be incremented when programs use it)
 		functionRefs[funcDef.ImplID] = &FunctionRefCount{
 			refCount: 0,
-			envID:    "", // Will be set below
-		}
-	}
-
-	// Generate a unique environment ID
-	envIDCounter++
-	envID := fmt.Sprintf("env_%d", envIDCounter)
-
-	// Set envID for all functions in this environment
-	for _, implID := range implIDs {
-		if ref, ok := functionRefs[implID]; ok {
-			ref.envID = envID
+			envID:    envID,
 		}
 	}
 
@@ -274,6 +390,124 @@ func Compile(envID string, exprStr string) map[string]interface{} {
 	return map[string]interface{}{
 		"programID": programID,
 		"error":     nil,
+	}
+}
+
+// CompileDetailed compiles a CEL expression and returns detailed results including all issues
+func CompileDetailed(envID string, exprStr string) map[string]interface{} {
+	envState, ok := envs[envID]
+	if !ok {
+		return map[string]interface{}{
+			"error":  fmt.Sprintf("environment not found: %s", envID),
+			"issues": []interface{}{},
+		}
+	}
+
+	// Check if environment has been destroyed
+	if envState.destroyed {
+		return map[string]interface{}{
+			"error":  fmt.Sprintf("environment has been destroyed: %s", envID),
+			"issues": []interface{}{},
+		}
+	}
+
+	// Create a compilation-scoped issue collector
+	compilationCollector := NewCompilationIssueCollector()
+
+	// Generate a unique compilation ID (using the filename side-channel pattern)
+	compilationIDCounter++
+	compilationID := fmt.Sprintf("comp_%d_%p", compilationIDCounter, &compilationCollector)
+
+	// Register the compilation context
+	RegisterCompilationContext(compilationID, compilationCollector)
+	defer UnregisterCompilationContext(compilationID) // Important: cleanup to prevent memory leaks
+
+	// Create source with compilation ID as the description (filename side-channel)
+	source := common.NewStringSource(exprStr, compilationID)
+
+	// Use ParseSource + Check with the compilation ID embedded in the source description
+	ast, issues := envState.env.ParseSource(source)
+	if issues.Err() == nil {
+		ast, issues = envState.env.Check(ast)
+	}
+
+	// Convert all issues to JavaScript-compatible format
+	var jsIssues []interface{}
+
+	// Add CEL built-in issues first
+	if issues != nil {
+		for _, err := range issues.Errors() {
+			jsIssues = append(jsIssues, map[string]interface{}{
+				"severity": "error",
+				"message":  err.Message,
+				"location": map[string]interface{}{
+					"line":   int(err.Location.Line()),
+					"column": int(err.Location.Column()),
+				},
+			})
+		}
+	}
+
+	// Add custom validator issues from this compilation
+	for _, validatorIssue := range compilationCollector.GetValidatorIssues() {
+		jsIssue := map[string]interface{}{
+			"severity": validatorIssue.Severity,
+			"message":  validatorIssue.Message,
+		}
+		if validatorIssue.Location != nil {
+			jsIssue["location"] = validatorIssue.Location
+		}
+		jsIssues = append(jsIssues, jsIssue)
+	}
+
+	// Check if compilation failed completely
+	if issues != nil && issues.Err() != nil {
+		return map[string]interface{}{
+			"error":     fmt.Sprintf("compilation error: %v", issues.Err()),
+			"issues":    jsIssues,
+			"programID": nil,
+		}
+	}
+
+	// Check for compilation errors
+	if !ast.IsChecked() {
+		return map[string]interface{}{
+			"error":     "expression compilation failed: not checked",
+			"issues":    jsIssues,
+			"programID": nil,
+		}
+	}
+
+	// Create program
+	prg, err := envState.env.Program(ast)
+	if err != nil {
+		return map[string]interface{}{
+			"error":     fmt.Sprintf("failed to create program: %v", err),
+			"issues":    jsIssues,
+			"programID": nil,
+		}
+	}
+
+	// Generate a unique program ID
+	programIDCounter++
+	programID := fmt.Sprintf("prg_%d", programIDCounter)
+	programs[programID] = &ProgramState{
+		prg:   prg,
+		envID: envID,
+	}
+
+	// Increment reference counts for all functions in this environment
+	// Programs can potentially use any function from their environment
+	for _, implID := range envState.implIDs {
+		if ref, ok := functionRefs[implID]; ok {
+			ref.refCount++
+		}
+	}
+
+	return map[string]interface{}{
+		"programID": programID,
+		"error":     nil,
+		"issues":    jsIssues,
 	}
 }
 

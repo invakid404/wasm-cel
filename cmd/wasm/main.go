@@ -8,6 +8,8 @@ import (
 	"syscall/js"
 
 	"github.com/invakid404/wasm-cel/internal/cel"
+	"github.com/invakid404/wasm-cel/internal/common"
+	"github.com/invakid404/wasm-cel/internal/options"
 )
 
 // jsFunctionCaller implements cel.JSFunctionCaller using syscall/js
@@ -50,6 +52,12 @@ func (c *jsFunctionCaller) UnregisterFunction(implID string) {
 
 var functionCaller = &jsFunctionCaller{
 	registry: make(map[string]js.Value),
+}
+
+// compilationContextAdapter provides compilation context for the filename side-channel approach
+func compilationContextAdapter(compilationID string) common.CompilationIssueAdder {
+	// Since both packages now use the same common types, no adaptation needed
+	return cel.GetCompilationContextAdder(compilationID)
 }
 
 // registerFunction registers a JavaScript function implementation
@@ -122,6 +130,20 @@ func compileExpr(this js.Value, args []js.Value) interface{} {
 	return cel.Compile(envID, exprStr)
 }
 
+// compileExprDetailed compiles a CEL expression with detailed results including all issues
+func compileExprDetailed(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return map[string]interface{}{
+			"error": "expected 2 arguments: envID string, expression string",
+		}
+	}
+
+	envID := args[0].String()
+	exprStr := args[1].String()
+
+	return cel.CompileDetailed(envID, exprStr)
+}
+
 // typecheckExpr typechecks a CEL expression using an environment
 func typecheckExpr(this js.Value, args []js.Value) interface{} {
 	if len(args) < 2 {
@@ -186,22 +208,46 @@ func destroyProgram(this js.Value, args []js.Value) interface{} {
 	return cel.DestroyProgram(programID)
 }
 
+// extendEnv extends an existing environment with additional options
+func extendEnv(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return map[string]interface{}{
+			"error": "expected 2 arguments: envID string, options string",
+		}
+	}
+
+	envID := args[0].String()
+	optionsJSON := args[1].String()
+
+	return cel.ExtendEnv(envID, optionsJSON)
+}
+
+
 func main() {
 	// Set the JavaScript function caller
 	cel.SetJSFunctionCaller(functionCaller)
 	// Set the unregister function caller (same instance)
 	cel.SetUnregisterFunctionCaller(functionCaller)
+	
+	// Set the JavaScript function caller for the options package (for AST validators)
+	options.SetJSFunctionCaller(functionCaller)
+	
+	// Set up the compilation context function for the filename side-channel approach
+	options.SetGetCompilationContextFunc(compilationContextAdapter)
 
 	// Register the registerFunction function for registering JS function implementations
 	js.Global().Set("registerCELFunction", js.FuncOf(registerFunction))
 
 	// Register the API functions
 	js.Global().Set("createEnv", js.FuncOf(createEnv))
+	js.Global().Set("extendEnv", js.FuncOf(extendEnv))
 	js.Global().Set("compileExpr", js.FuncOf(compileExpr))
+	js.Global().Set("compileExprDetailed", js.FuncOf(compileExprDetailed))
 	js.Global().Set("typecheckExpr", js.FuncOf(typecheckExpr))
 	js.Global().Set("evalProgram", js.FuncOf(evalProgram))
 	js.Global().Set("destroyEnv", js.FuncOf(destroyEnv))
 	js.Global().Set("destroyProgram", js.FuncOf(destroyProgram))
+
 
 	// Keep the program running
 	// In WASM, we need to keep the main goroutine alive
