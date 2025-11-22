@@ -43,7 +43,7 @@
   },
   "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
   "devDependencies": {
-    "@types/node": "20.19.25",
+    "@types/node": "24.10.1",
     "jest": "30.2.0",
     "typescript": "5.9.3"
   }
