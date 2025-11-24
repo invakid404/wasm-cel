@@ -2,6 +2,27 @@ import { Env, CELFunction } from "../dist/index.js";
 
 describe("Memory Management", () => {
   describe("Environment and Program lifecycle", () => {
+    test("custom functions remain registered while environment is alive", async () => {
+      const coalesce = CELFunction.new("coalesce")
+        .param("left", "dyn", true)
+        .param("right", "dyn", true)
+        .returns("dyn")
+        .implement((left, right) => left ?? right);
+
+      const env = await Env.new({
+        functions: [coalesce],
+      });
+
+      for (let i = 0; i < 3; i += 1) {
+        const program = await env.compile(`coalesce(null, "value-${i}")`);
+        const result = await program.eval();
+        expect(result).toBe(`value-${i}`);
+        program.destroy();
+      }
+
+      env.destroy();
+    });
+
     test("programs should continue to work after environment is destroyed", async () => {
       const add = CELFunction.new("add")
         .param("a", "int")

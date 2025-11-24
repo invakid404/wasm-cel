@@ -312,9 +312,13 @@ func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSO
 	implIDs := make([]string, 0, len(funcDefs))
 	for _, funcDef := range funcDefs {
 		implIDs = append(implIDs, funcDef.ImplID)
-		// Initialize function reference count (starts at 0, will be incremented when programs use it)
+		// Initialize function reference count with 1 for the owning environment.
 		functionRefs[funcDef.ImplID] = &FunctionRefCount{
-			refCount: 0,
+			// Start with a count of 1 to represent the owning environment.
+			// Programs created from this environment will increment the count
+			// and they will decrement it on destruction. This ensures that
+			// functions remain registered as long as their environment exists.
+			refCount: 1,
 			envID:    envID,
 		}
 	}
@@ -892,26 +896,27 @@ func DestroyEnv(envID string) map[string]interface{} {
 		}
 	}
 
-	// Mark environment as destroyed (prevents new programs from being created)
-	envState.destroyed = true
-
-	// OPTIMIZATION: Check if we can clean up immediately.
-	// If no programs exist, the refCount for all functions will be 0.
-	canCleanupImmediately := true
-	for _, implID := range envState.implIDs {
-		if ref, ok := functionRefs[implID]; ok {
-			if ref.refCount > 0 {
-				canCleanupImmediately = false
-				break
-			}
+	// If the environment was already destroyed, treat as success (idempotent).
+	if envState.destroyed {
+		return map[string]interface{}{
+			"success": true,
+			"error":   nil,
 		}
 	}
 
-	if canCleanupImmediately {
-		// No programs exist, so we can safely unregister everything now
-		for _, implID := range envState.implIDs {
+	// Mark environment as destroyed (prevents new programs from being created)
+	envState.destroyed = true
+
+	// Drop the environment's reference to each function implementation.
+	for _, implID := range envState.implIDs {
+		if ref, ok := functionRefs[implID]; ok {
+			ref.refCount--
 			unregisterFunctionIfUnused(implID)
 		}
+	}
+
+	// If no programs remain for this environment, clean it up immediately.
+	if !hasProgramsForEnv(envID) {
 		delete(envs, envID)
 	}
 
@@ -971,4 +976,14 @@ func DestroyProgram(programID string) map[string]interface{} {
 		"success": true,
 		"error":   nil,
 	}
+}
+
+// hasProgramsForEnv returns true if there are programs still referencing the environment.
+func hasProgramsForEnv(envID string) bool {
+	for _, prog := range programs {
+		if prog.envID == envID {
+			return true
+		}
+	}
+	return false
 }
