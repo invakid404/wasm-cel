@@ -120,13 +120,36 @@ function serializeTypeDef(type: CELTypeDef): any {
 // Counter for generating unique implementation IDs
 let implIDCounter = 0;
 
+function expandFunctionDefinitions(
+  functions: CELFunctionDefinition[],
+): CELFunctionDefinition[] {
+  const expanded: CELFunctionDefinition[] = [];
+
+  const visit = (fn: CELFunctionDefinition): void => {
+    expanded.push(fn);
+    if (fn.overloads && fn.overloads.length > 0) {
+      for (const overload of fn.overloads) {
+        visit(overload);
+      }
+    }
+  };
+
+  for (const fn of functions) {
+    visit(fn);
+  }
+
+  return expanded;
+}
+
 function serializeFunctionDefs(functions: CELFunctionDefinition[]): Array<{
   name: string;
   params: Array<{ name: string; type: any; optional?: boolean }>;
   returnType: any;
   implID: string;
 }> {
-  return functions.map((fn, index) => {
+  const flattened = expandFunctionDefinitions(functions);
+
+  return flattened.map((fn, index) => {
     // Generate a unique implementation ID
     const implID = `${fn.name}_${index}_${++implIDCounter}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 

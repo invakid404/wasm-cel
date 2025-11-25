@@ -54,9 +54,9 @@ export interface CELFunctionParam {
   optional?: boolean;
 }
 
-/**
- * Definition of a custom CEL function
- */
+declare const CELFunctionDefinitionBrand: unique symbol;
+export type CELFunctionDefinitionBrand = typeof CELFunctionDefinitionBrand;
+
 export interface CELFunctionDefinition {
   /** Function name (must be a valid CEL identifier) */
   name: string;
@@ -68,6 +68,8 @@ export interface CELFunctionDefinition {
   impl: (...args: any[]) => any;
   /** Whether the function accepts variable arguments (overloads) */
   overloads?: CELFunctionDefinition[];
+  /** Brand to ensure only verified builders can create definitions */
+  readonly [CELFunctionDefinitionBrand]: true;
 }
 
 /**

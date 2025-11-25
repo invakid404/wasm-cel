@@ -356,6 +356,53 @@ describe("Custom Functions", () => {
     });
   });
 
+  describe("Function overloads", () => {
+    test("should dispatch between overloads", async () => {
+      const describeBuilder = CELFunction.new("describe")
+        .param("value", "int")
+        .returns("string");
+
+      describeBuilder.overload(
+        CELFunction.new("describe")
+          .param("value", "string")
+          .returns("string")
+          .implement((value) => `string:${value}`),
+      );
+
+      const describe = describeBuilder.implement((value) => `int:${value}`);
+
+      const env = await Env.new({ functions: [describe] });
+      const program = await env.compile('describe(1) + "|" + describe("x")');
+      const result = await program.eval();
+      expect(result).toBe("int:1|string:x");
+    });
+
+    test("should support multiple arities via overloads", async () => {
+      const coalesceBuilder = CELFunction.new("coalesce")
+        .param("a", "string")
+        .param("b", "string")
+        .returns("string");
+
+      const listOverload = CELFunction.new("coalesce")
+        .param("values", listType("string"))
+        .returns("string")
+        .implement((values) => (Array.isArray(values) ? values[0] ?? "" : ""));
+
+      coalesceBuilder.overload(listOverload);
+
+      const coalesce = coalesceBuilder.implement((a, b) =>
+        (a ?? b)?.toUpperCase() ?? "",
+      );
+
+      const env = await Env.new({ functions: [coalesce] });
+      const program = await env.compile(
+        'coalesce("value", "fallback") + "-" + coalesce(["first", "second"])',
+      );
+      const result = await program.eval();
+      expect(result).toBe("VALUE-first");
+    });
+  });
+
   describe("Type helpers", () => {
     test("should use listType helper", async () => {
       const sum = CELFunction.new("sum")

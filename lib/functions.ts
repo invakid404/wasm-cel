@@ -64,10 +64,14 @@ type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
  *   .implement((a, b) => a + b);
  * ```
  */
+type BuilderStage = "params" | "returns";
+
 export class CELFunction<
+  Stage extends BuilderStage = "params",
   Params extends readonly CELFunctionParam[] = readonly [],
   ReturnType extends CELTypeDef = "dyn",
 > {
+  private readonly stageMarker!: Stage;
   private name: string;
   private readonly params: CELFunctionParam[];
   private returnType: CELTypeDef;
@@ -77,6 +81,7 @@ export class CELFunction<
     name: string,
     params: CELFunctionParam[] = [],
     returnType: CELTypeDef = "dyn",
+    overloads: CELFunctionDefinition[] = [],
   ) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
       throw new Error(
@@ -86,6 +91,7 @@ export class CELFunction<
     this.name = name;
     this.params = params;
     this.returnType = returnType;
+    this.overloads = [...overloads];
   }
 
   /**
@@ -102,47 +108,62 @@ export class CELFunction<
    *   .implement((a, b) => a + b);
    * ```
    */
-  static new(name: string): CELFunction<readonly [], "dyn"> {
-    return new CELFunction(name);
+  static new(name: string): CELFunction<"params", readonly [], "dyn"> {
+    return new CELFunction<"params", readonly [], "dyn">(name);
   }
 
   /**
    * Add a parameter to the function
    */
   param<T extends CELTypeDef>(
+    this: CELFunction<"params", Params, ReturnType>,
     name: string,
     type: T,
     optional = false,
   ): CELFunction<
-    [...Params, { name: string; type: T; optional: boolean }],
+    "params",
+    readonly [...Params, { name: string; type: T; optional: boolean }],
     ReturnType
   > {
     const newParams = [
       ...this.params,
       { name, type, optional },
     ] as CELFunctionParam[];
-    return new CELFunction(this.name, newParams, this.returnType);
+    return new CELFunction<
+      "params",
+      readonly [...Params, { name: string; type: T; optional: boolean }],
+      ReturnType
+    >(this.name, newParams, this.returnType, this.overloads);
   }
 
   /**
    * Set the return type of the function
    */
-  returns<T extends CELTypeDef>(type: T): CELFunction<Params, T> {
-    return new CELFunction(this.name, this.params, type);
+  returns<T extends CELTypeDef>(
+    this: CELFunction<"params", Params, ReturnType>,
+    type: T,
+  ): CELFunction<"returns", Params, T> {
+    return new CELFunction<"returns", Params, T>(
+      this.name,
+      this.params,
+      type,
+      this.overloads,
+    );
   }
 
   /**
    * Set the implementation function and return the final definition
    */
   implement(
+    this: CELFunction<"returns", Params, ReturnType>,
     impl: (...args: ExtractParamTypes<Params>) => CELTypeToTS<ReturnType>,
   ): CELFunctionDefinition {
-    const definition: CELFunctionDefinition = {
+    const definition = {
       name: this.name,
       params: [...this.params],
       returnType: this.returnType,
       impl: impl as (...args: any[]) => any,
-    };
+    } as CELFunctionDefinition;
 
     if (this.overloads.length > 0) {
       definition.overloads = this.overloads;
@@ -154,7 +175,10 @@ export class CELFunction<
   /**
    * Add an overload variant of this function
    */
-  overload(overload: CELFunctionDefinition): this {
+  overload(
+    this: CELFunction<"returns", Params, ReturnType>,
+    overload: CELFunctionDefinition,
+  ): CELFunction<"returns", Params, ReturnType> {
     if (overload.name !== this.name) {
       throw new Error(
         `Overload name mismatch: expected ${this.name}, got ${overload.name}`,
