@@ -14,7 +14,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "moduleResolution": "NodeNext",
-    "types": ["node"]
+    "types": ["node", "vitest/globals"]
   },
   "include": ["lib/**/*"],
   "exclude": ["node_modules", "dist", "test", "examples", "coverage"]

@@ -31,9 +31,11 @@
     "build:ts": "tsc",
     "build:all": "pnpm run build && pnpm run build:copy-wasm-exec && pnpm run build:ts",
     "prepublishOnly": "pnpm run build:all",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:browser": "vitest run --browser.enabled",
+    "test:browser:ui": "vitest --browser.enabled --ui"
   },
   "keywords": [
     "cel",
@@ -58,7 +60,12 @@
   "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
   "devDependencies": {
     "@types/node": "24.10.1",
-    "jest": "30.2.0",
-    "typescript": "5.9.3"
+    "@vitest/browser": "^4.0.14",
+    "@vitest/browser-playwright": "^4.0.14",
+    "@vitest/coverage-v8": "^4.0.14",
+    "@vitest/ui": "^4.0.14",
+    "playwright": "^1.57.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.14"
   }
 }
