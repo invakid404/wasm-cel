@@ -1,5 +1,5 @@
 // Main entry point with runtime environment detection
-// 
+//
 // This works for:
 // 1. Bundlers: They use package.json conditional exports (preferred, tree-shakes better)
 // 2. Native ES modules: Runtime detection selects the right module
@@ -9,8 +9,7 @@
 
 // Detect environment at module load time
 const isBrowser =
-  typeof window !== "undefined" &&
-  typeof document !== "undefined";
+  typeof window !== "undefined" && typeof document !== "undefined";
 
 // Import the appropriate module
 // Note: This is a top-level await, which works in ES modules

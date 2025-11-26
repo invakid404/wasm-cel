@@ -26,14 +26,14 @@ async function loadWasmExec(wasmExecUrl?: string | URL): Promise<void> {
 
   // Load wasm_exec.js dynamically
   const url = typeof wasmExecUrl === "string" ? wasmExecUrl : wasmExecUrl.href;
-  
+
   // Check if we're in an environment with document (browser main thread)
   if (typeof document === "undefined") {
     throw new Error(
       "document is not available. In environments like Web Workers, please load wasm_exec.js manually before calling init().",
     );
   }
-  
+
   const script = document.createElement("script");
   script.src = url;
   script.type = "text/javascript";
@@ -82,26 +82,26 @@ async function internalInit(): Promise<void> {
  *   - Response: Fetch Response object containing WASM bytes
  * @param wasmExecUrl - Optional URL to wasm_exec.js if it needs to be loaded dynamically
  * @returns {Promise<void>}
- * 
+ *
  * @example
  * ```typescript
  * // With Vite - recommended pattern using ?url query parameter
  * // Vite will process and optimize the WASM file, returning a URL string
  * import wasmUrl from 'wasm-cel/main.wasm?url';
  * await init(wasmUrl);
- * 
+ *
  * // With Vite - alternative: fetch the processed URL
  * import wasmUrl from 'wasm-cel/main.wasm?url';
  * const response = await fetch(wasmUrl);
  * await init(response);
- * 
+ *
  * // Traditional URL (works in any environment)
  * await init('/path/to/main.wasm');
- * 
+ *
  * // Direct bytes
  * const bytes = await fetch('/main.wasm').then(r => r.arrayBuffer());
  * await init(new Uint8Array(bytes));
- * 
+ *
  * // URL object
  * await init(new URL('/main.wasm', window.location.origin));
  * ```
@@ -132,7 +132,7 @@ async function init(
 
     // Load WASM bytes
     let wasmBuffer: Uint8Array;
-    
+
     if (wasmBytes instanceof Uint8Array) {
       // Direct bytes
       wasmBuffer = wasmBytes;
