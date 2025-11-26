@@ -1,15 +1,29 @@
 {
   "name": "wasm-cel",
   "version": "0.2.2",
-  "description": "WebAssembly module for evaluating CEL (Common Expression Language) expressions in Node.js",
+  "description": "WebAssembly module for evaluating CEL (Common Expression Language) expressions in Node.js and browsers",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "node": {
+        "import": "./dist/node.js"
+      },
+      "browser": {
+        "import": "./dist/browser.js"
+      },
+      "default": "./dist/node.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./main.wasm": "./main.wasm",
+    "./wasm_exec": "./wasm_exec.cjs",
+    "./wasm_exec.js": "./wasm_exec.cjs",
+    "./wasm_exec.cjs": "./wasm_exec.cjs"
   },
   "scripts": {
     "build": "GOOS=js GOARCH=wasm go build -ldflags '-s -w' -o main.wasm ./cmd/wasm",
@@ -41,7 +55,12 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
+  "files": [
+    "dist/**/*",
+    "main.wasm",
+    "wasm_exec.cjs",
+    "README.md"
+  ],
   "devDependencies": {
     "@types/node": "24.10.1",
     "jest": "30.2.0",

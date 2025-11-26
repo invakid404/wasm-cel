@@ -386,12 +386,14 @@ describe("Custom Functions", () => {
       const listOverload = CELFunction.new("coalesce")
         .param("values", listType("string"))
         .returns("string")
-        .implement((values) => (Array.isArray(values) ? values[0] ?? "" : ""));
+        .implement((values) =>
+          Array.isArray(values) ? (values[0] ?? "") : "",
+        );
 
       coalesceBuilder.overload(listOverload);
 
-      const coalesce = coalesceBuilder.implement((a, b) =>
-        (a ?? b)?.toUpperCase() ?? "",
+      const coalesce = coalesceBuilder.implement(
+        (a, b) => (a ?? b)?.toUpperCase() ?? "",
       );
 
       const env = await Env.new({ functions: [coalesce] });
