@@ -19,7 +19,11 @@
     "./browser": {
       "types": "./dist/browser.d.ts",
       "import": "./dist/browser.js"
-    }
+    },
+    "./main.wasm": "./main.wasm",
+    "./wasm_exec": "./wasm_exec.cjs",
+    "./wasm_exec.js": "./wasm_exec.cjs",
+    "./wasm_exec.cjs": "./wasm_exec.cjs"
   },
   "scripts": {
     "build": "GOOS=js GOARCH=wasm go build -ldflags '-s -w' -o main.wasm ./cmd/wasm",

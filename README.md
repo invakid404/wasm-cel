@@ -1,7 +1,7 @@
 # wasm-cel
 
 WebAssembly module for evaluating CEL (Common Expression Language) expressions
-in Node.js.
+in Node.js and browsers.
 
 ## Installation
 
@@ -15,8 +15,10 @@ yarn add wasm-cel
 
 ## Usage
 
-The library follows the CEL pattern: create an environment, compile an
-expression, and then evaluate it:
+### Node.js
+
+In Node.js, the library automatically loads the WASM module. Just import and
+use:
 
 ```typescript
 import { Env } from "wasm-cel";
@@ -49,6 +51,118 @@ const program2 = await env.compile(
 const result3 = await program2.eval({ name: "Alice", age: 30 });
 console.log(result3); // "Alice is 30 years old"
 ```
+
+### Browser
+
+In browsers, you need to initialize the WASM module first by providing the WASM
+bytes or URL.
+
+#### With Vite (Recommended)
+
+Vite can process and optimize the WASM file automatically:
+
+```typescript
+import { init, Env } from "wasm-cel";
+import wasmUrl from "wasm-cel/main.wasm?url";
+
+// Initialize with Vite-processed WASM URL
+await init(wasmUrl);
+
+// Now use the library normally
+const env = await Env.new({
+  variables: [{ name: "x", type: "int" }],
+});
+
+const program = await env.compile("x + 10");
+const result = await program.eval({ x: 5 });
+console.log(result); // 15
+```
+
+**Loading wasm_exec.js with Vite:**
+
+If you need to load `wasm_exec.js` dynamically (it's usually loaded via script
+tag):
+
+```typescript
+import { init, Env } from "wasm-cel";
+import wasmUrl from "wasm-cel/main.wasm?url";
+import wasmExecUrl from "wasm-cel/wasm_exec.js?url";
+
+// Initialize with both WASM and wasm_exec URLs
+await init(wasmUrl, wasmExecUrl);
+
+// Use the library
+const env = await Env.new({ variables: [{ name: "x", type: "int" }] });
+```
+
+#### Without a Bundler (Native ES Modules)
+
+For native ES modules without a bundler, you can import directly:
+
+```html
+<script type="module">
+  import { init, Env } from "./node_modules/wasm-cel/dist/browser.js";
+
+  // Initialize with WASM URL
+  await init("/path/to/main.wasm");
+
+  // Or load wasm_exec.js first via script tag, then just init with WASM
+  await init("/path/to/main.wasm");
+
+  // Use the library
+  const env = await Env.new({ variables: [{ name: "x", type: "int" }] });
+</script>
+```
+
+**Loading wasm_exec.js:**
+
+You can either:
+
+1. Load it via script tag before initializing:
+
+   ```html
+   <script src="/path/to/wasm_exec.js"></script>
+   <script type="module">
+     import { init, Env } from "./node_modules/wasm-cel/dist/browser.js";
+     await init("/path/to/main.wasm");
+   </script>
+   ```
+
+2. Or pass the URL to `init()`:
+   ```typescript
+   await init("/path/to/main.wasm", "/path/to/wasm_exec.js");
+   ```
+
+#### Other Browser Patterns
+
+```typescript
+import { init, Env } from "wasm-cel";
+
+// Using a URL string
+await init("/path/to/main.wasm");
+
+// Using a URL object
+await init(new URL("/main.wasm", window.location.origin));
+
+// Using direct bytes (Uint8Array)
+const response = await fetch("/main.wasm");
+const bytes = new Uint8Array(await response.arrayBuffer());
+await init(bytes);
+
+// Using Response object
+const response = await fetch("/main.wasm");
+await init(response);
+```
+
+### Available Exports
+
+The package exports the following for direct imports:
+
+- `wasm-cel` - Main entry point (auto-selects Node.js or browser)
+- `wasm-cel/browser` - Browser-specific entry point
+- `wasm-cel/main.wasm` - WASM module file
+- `wasm-cel/wasm_exec.js` - Go WASM runtime (for browsers)
+- `wasm-cel/wasm_exec.cjs` - Go WASM runtime (CommonJS, for Node.js)
 
 ## CEL Environment Options
 
@@ -481,10 +595,50 @@ program.destroy();
 await expect(program.eval()).rejects.toThrow();
 ```
 
-### `init(): Promise<void>`
+### `init(wasmBytes?, wasmExecUrl?): Promise<void>`
 
-Initializes the WASM module. This is called automatically by the API functions,
-but can be called manually to pre-initialize the module.
+Initializes the WASM module.
+
+**Node.js:**
+
+- No parameters needed - automatically loads from file system
+- Called automatically by API functions, but can be called manually to
+  pre-initialize
+
+**Browser:**
+
+- **Required**: `wasmBytes` - The WASM module. Can be:
+  - `Uint8Array` - Direct bytes
+  - `string` - URL to fetch the WASM file from (supports Vite-processed URLs)
+  - `URL` - URL object pointing to the WASM file
+  - `Response` - Fetch Response object containing WASM bytes
+  - `Promise<Uint8Array>` - Async import of WASM bytes
+- **Optional**: `wasmExecUrl` - URL to `wasm_exec.js` if it needs to be loaded
+  dynamically
+- Must be called before using the library
+
+**Examples:**
+
+```typescript
+// Node.js - no parameters
+await init();
+
+// Browser - with Vite
+import wasmUrl from "wasm-cel/main.wasm?url";
+await init(wasmUrl);
+
+// Browser - with URL
+await init("/path/to/main.wasm");
+
+// Browser - with wasm_exec.js URL
+await init("/path/to/main.wasm", "/path/to/wasm_exec.js");
+
+// Browser - with direct bytes
+const bytes = new Uint8Array(
+  await fetch("/main.wasm").then((r) => r.arrayBuffer()),
+);
+await init(bytes);
+```
 
 ## Memory Management
 
@@ -629,7 +783,8 @@ pnpm run example
 
 ## Requirements
 
-- Node.js >= 18.0.0
+- **Node.js**: >= 18.0.0
+- **Browsers**: Modern browsers with WebAssembly support (all current browsers)
 
 ## Package Type
 
@@ -637,6 +792,21 @@ This is an **ESM-only** package. It uses modern ES modules and NodeNext module
 resolution. If you're using TypeScript, make sure your `tsconfig.json` has
 `"module": "NodeNext"` or `"moduleResolution": "NodeNext"` for proper type
 resolution.
+
+## Environment Detection
+
+The library automatically detects the environment:
+
+- **With bundlers** (Vite, Webpack, Rollup, etc.): Uses `package.json`
+  conditional exports to select the correct entry point at build time
+- **Native ES modules**: Uses runtime detection to select the appropriate module
+- **Node.js**: Automatically uses the Node.js entry point with file system
+  access
+- **Browsers**: Uses the browser entry point that requires explicit WASM
+  initialization
+
+You don't need to change your import statements - the library handles the
+environment detection automatically.
 
 ## License
 

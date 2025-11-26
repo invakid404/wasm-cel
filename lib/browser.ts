@@ -76,13 +76,38 @@ async function internalInit(): Promise<void> {
  * Initialize the WASM module (Browser version - requires WASM bytes)
  * @param wasmBytes - The WASM module bytes. Can be:
  *   - Uint8Array: Direct bytes
- *   - string: URL to fetch the WASM file from
+ *   - string: URL to fetch the WASM file from (supports Vite-processed URLs)
  *   - URL: URL object pointing to the WASM file
+ *   - Promise<Uint8Array>: Async import of WASM bytes (for Vite `?init` pattern)
+ *   - Response: Fetch Response object containing WASM bytes
  * @param wasmExecUrl - Optional URL to wasm_exec.js if it needs to be loaded dynamically
  * @returns {Promise<void>}
+ * 
+ * @example
+ * ```typescript
+ * // With Vite - recommended pattern using ?url query parameter
+ * // Vite will process and optimize the WASM file, returning a URL string
+ * import wasmUrl from 'wasm-cel/main.wasm?url';
+ * await init(wasmUrl);
+ * 
+ * // With Vite - alternative: fetch the processed URL
+ * import wasmUrl from 'wasm-cel/main.wasm?url';
+ * const response = await fetch(wasmUrl);
+ * await init(response);
+ * 
+ * // Traditional URL (works in any environment)
+ * await init('/path/to/main.wasm');
+ * 
+ * // Direct bytes
+ * const bytes = await fetch('/main.wasm').then(r => r.arrayBuffer());
+ * await init(new Uint8Array(bytes));
+ * 
+ * // URL object
+ * await init(new URL('/main.wasm', window.location.origin));
+ * ```
  */
 async function init(
-  wasmBytes: Uint8Array | string | URL,
+  wasmBytes: Uint8Array | string | URL | Promise<Uint8Array> | Response,
   wasmExecUrl?: string | URL,
 ): Promise<void> {
   if (isInitialized) {
@@ -107,19 +132,41 @@ async function init(
 
     // Load WASM bytes
     let wasmBuffer: Uint8Array;
+    
     if (wasmBytes instanceof Uint8Array) {
+      // Direct bytes
       wasmBuffer = wasmBytes;
-    } else {
-      // Fetch from URL
-      const url = typeof wasmBytes === "string" ? wasmBytes : wasmBytes.href;
-      const response = await fetch(url);
+    } else if (wasmBytes instanceof Response) {
+      // Response object
+      const arrayBuffer = await wasmBytes.arrayBuffer();
+      wasmBuffer = new Uint8Array(arrayBuffer);
+    } else if (wasmBytes instanceof Promise) {
+      // Promise resolving to Uint8Array (for Vite ?init pattern or async imports)
+      wasmBuffer = await wasmBytes;
+    } else if (wasmBytes instanceof URL) {
+      // URL object
+      const response = await fetch(wasmBytes.href);
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch WASM file from ${url}: ${response.statusText}`,
+          `Failed to fetch WASM file from ${wasmBytes.href}: ${response.statusText}`,
         );
       }
       const arrayBuffer = await response.arrayBuffer();
       wasmBuffer = new Uint8Array(arrayBuffer);
+    } else if (typeof wasmBytes === "string") {
+      // String URL (supports Vite-processed URLs)
+      const response = await fetch(wasmBytes);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch WASM file from ${wasmBytes}: ${response.statusText}`,
+        );
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      wasmBuffer = new Uint8Array(arrayBuffer);
+    } else {
+      throw new Error(
+        `Invalid wasmBytes type. Expected Uint8Array, string, URL, Response, or Promise<Uint8Array>, got ${typeof wasmBytes}`,
+      );
     }
 
     // Instantiate WASM
