@@ -776,9 +776,6 @@ pnpm run build:all
 
 # Run tests
 pnpm test
-
-# Run example
-pnpm run example
 ```
 
 ## Requirements
