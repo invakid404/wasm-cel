@@ -132,5 +132,5 @@ export interface CompilationResult {
   /** All issues found during compilation (errors, warnings, info) */
   issues: CompilationIssue[];
   /** The compiled program if compilation succeeded */
-  program?: import("./index.js").Program;
+  program?: import("./core.js").Program;
 }
