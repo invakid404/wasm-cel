@@ -22,6 +22,7 @@ export type {
   ASTValidatorsConfig,
 } from "./astValidators.js";
 export type { CrossTypeNumericComparisonsConfig } from "./crossTypeNumericComparisons.js";
+export type { StringsExtConfig } from "./strings.js";
 
 // Re-export the Options helper object
 export { Options } from "./options.js";

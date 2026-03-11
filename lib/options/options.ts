@@ -5,6 +5,7 @@
 import { optionalTypes } from "./optionalTypes.js";
 import { astValidators } from "./astValidators.js";
 import { crossTypeNumericComparisons } from "./crossTypeNumericComparisons.js";
+import { strings } from "./strings.js";
 
 /**
  * Helper object containing functions for creating CEL environment option configurations
@@ -105,4 +106,34 @@ export const Options = {
    * ```
    */
   crossTypeNumericComparisons,
+
+  /**
+   * Create a StringsExt option configuration to enable the CEL string extension library.
+   *
+   * This option provides additional string manipulation functions including
+   * charAt, indexOf, join, lowerAscii, upperAscii, replace, split, substring,
+   * trim, format, quote, reverse, and more.
+   *
+   * @param config - Optional configuration for the string extension
+   * @returns An option configuration for enabling CEL string extensions
+   *
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   options: [Options.strings()]
+   * });
+   *
+   * const program = await env.compile("'hello world'.upperAscii()");
+   * const result = await program.eval(); // "HELLO WORLD"
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Enable with specific version for format support
+   * const env = await Env.new({
+   *   options: [Options.strings({ version: 1 })]
+   * });
+   * ```
+   */
+  strings,
 } as const;

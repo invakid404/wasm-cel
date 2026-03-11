@@ -53,6 +53,10 @@ export type EnvOptionConfig =
   | {
       type: "CrossTypeNumericComparisons";
       params?: import("./crossTypeNumericComparisons.js").CrossTypeNumericComparisonsConfig;
+    }
+  | {
+      type: "StringsExt";
+      params?: import("./strings.js").StringsExtConfig;
     };
 
 /**
