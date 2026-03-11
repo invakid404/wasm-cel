@@ -6,6 +6,7 @@ import { optionalTypes } from "./optionalTypes.js";
 import { astValidators } from "./astValidators.js";
 import { crossTypeNumericComparisons } from "./crossTypeNumericComparisons.js";
 import { strings } from "./strings.js";
+import { math } from "./math.js";
 
 /**
  * Helper object containing functions for creating CEL environment option configurations
@@ -136,4 +137,27 @@ export const Options = {
    * ```
    */
   strings,
+
+  /**
+   * Create a MathExt option configuration to enable the CEL math extension library.
+   *
+   * This option provides namespaced math helper macros and functions including
+   * math.greatest, math.least, math.ceil, math.floor, math.round, math.trunc,
+   * math.abs, math.sign, math.isNaN, math.isInf, math.isFinite, bitwise operations,
+   * and math.sqrt.
+   *
+   * @param config - Optional configuration for the math extension
+   * @returns An option configuration for enabling CEL math extensions
+   *
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   options: [Options.math()]
+   * });
+   *
+   * const program = await env.compile("math.greatest(1, 2, 3)");
+   * const result = await program.eval(); // 3
+   * ```
+   */
+  math,
 } as const;
