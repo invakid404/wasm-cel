@@ -29,6 +29,84 @@ async function init(): Promise<void> {
   await initFn();
 }
 
+// Base64 encoding/decoding helpers for bytes support
+const base64Encode =
+  typeof Buffer !== "undefined"
+    ? (bytes: Uint8Array) => Buffer.from(bytes).toString("base64")
+    : (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+
+const base64Decode =
+  typeof Buffer !== "undefined"
+    ? (str: string) => new Uint8Array(Buffer.from(str, "base64"))
+    : (str: string) => {
+        const binary = atob(str);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+      };
+
+/**
+ * Recursively prepare variables for serialization to WASM.
+ * Converts Uint8Array/Buffer values to tagged bytes objects.
+ * @internal
+ */
+function prepareVarsForWasm(vars: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    result[key] = encodeBytes(value);
+  }
+  return result;
+}
+
+function encodeBytes(value: any): any {
+  if (value instanceof Uint8Array) {
+    return { $bytes: base64Encode(value) };
+  }
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return { $bytes: (value as Buffer).toString("base64") };
+  }
+  if (Array.isArray(value)) {
+    return value.map(encodeBytes);
+  }
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = encodeBytes(v);
+    }
+    return result;
+  }
+  return value;
+}
+
+/**
+ * Recursively decode tagged bytes objects in WASM results to Uint8Array.
+ * @internal
+ */
+function decodeBytes(value: any): any {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  if (typeof value === "object" && !Array.isArray(value)) {
+    // Detect tagged bytes: { $bytes: "<base64>" }
+    const keys = Object.keys(value);
+    if (keys.length === 1 && keys[0] === "$bytes" && typeof value.$bytes === "string") {
+      return base64Decode(value.$bytes);
+    }
+    // Recursively decode map values
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = decodeBytes(v);
+    }
+    return result;
+  }
+  if (Array.isArray(value)) {
+    return value.map(decodeBytes);
+  }
+  return value;
+}
+
 /**
  * Serialize a CEL type definition to a format that can be sent to Go
  */
@@ -189,12 +267,13 @@ export class Program {
       try {
         const globalObj =
           typeof globalThis !== "undefined" ? globalThis : global;
-        const result = globalObj.evalProgram(this.programID, vars || {});
+        const preparedVars = vars ? prepareVarsForWasm(vars) : {};
+        const result = globalObj.evalProgram(this.programID, preparedVars);
 
         if (result.error) {
           reject(new Error(result.error));
         } else {
-          resolve(result.result);
+          resolve(decodeBytes(result.result));
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));

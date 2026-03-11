@@ -573,6 +573,51 @@ func Typecheck(envID string, exprStr string) map[string]interface{} {
 	}
 }
 
+// preprocessVars walks the vars map and converts tagged bytes objects to []byte.
+// The TypeScript layer serializes Uint8Array/Buffer as {"$bytes": "<base64>"}.
+// After JSON.Unmarshal these arrive as map[string]interface{}, but CEL needs
+// []byte to recognize the bytes type.
+func preprocessVars(vars map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{}, len(vars))
+	for k, v := range vars {
+		result[k] = preprocessValue(v)
+	}
+	return result
+}
+
+func preprocessValue(val interface{}) interface{} {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		if len(v) == 1 {
+			if b64, ok := v["$bytes"]; ok {
+				if b64Str, ok := b64.(string); ok {
+					decoded, err := base64.StdEncoding.DecodeString(b64Str)
+					if err != nil {
+						decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
+						if err != nil {
+							return val
+						}
+					}
+					return decoded
+				}
+			}
+		}
+		result := make(map[string]interface{}, len(v))
+		for mk, mv := range v {
+			result[mk] = preprocessValue(mv)
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			result[i] = preprocessValue(item)
+		}
+		return result
+	default:
+		return val
+	}
+}
+
 // Eval evaluates a compiled program with the given variables
 func Eval(programID string, vars map[string]interface{}) map[string]interface{} {
 	programState, ok := programs[programID]
@@ -582,8 +627,11 @@ func Eval(programID string, vars map[string]interface{}) map[string]interface{} 
 		}
 	}
 
+	// Preprocess vars to convert tagged $bytes objects to []byte
+	processedVars := preprocessVars(vars)
+
 	// Evaluate the program with variables
-	out, _, err := programState.prg.Eval(vars)
+	out, _, err := programState.prg.Eval(processedVars)
 	if err != nil {
 		return map[string]interface{}{
 			"error": fmt.Sprintf("evaluation error: %v", err),
@@ -765,7 +813,9 @@ func ValueToJSON(val ref.Val) interface{} {
 	case types.String:
 		return string(v)
 	case types.Bytes:
-		return base64.StdEncoding.EncodeToString([]byte(v))
+		return map[string]interface{}{
+			"$bytes": base64.StdEncoding.EncodeToString([]byte(v)),
+		}
 	case traits.Lister:
 		size := v.Size().Value().(int64)
 		result := make([]interface{}, size)
@@ -833,6 +883,22 @@ func JSONToValue(val interface{}) ref.Val {
 		}
 		return types.NewDynamicList(types.DefaultTypeAdapter, items)
 	case map[string]interface{}:
+		// Detect tagged bytes: {"$bytes": "<base64>"}
+		if len(v) == 1 {
+			if b64, ok := v["$bytes"]; ok {
+				if b64Str, ok := b64.(string); ok {
+					decoded, err := base64.StdEncoding.DecodeString(b64Str)
+					if err != nil {
+						// Try raw (no padding) base64
+						decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
+						if err != nil {
+							return types.NewErr("failed to decode $bytes: %v", err)
+						}
+					}
+					return types.Bytes(decoded)
+				}
+			}
+		}
 		result := make(map[ref.Val]ref.Val)
 		for k, v := range v {
 			result[types.String(k)] = JSONToValue(v)
