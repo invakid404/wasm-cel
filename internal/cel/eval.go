@@ -1,6 +1,7 @@
 package cel
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -764,7 +765,7 @@ func ValueToJSON(val ref.Val) interface{} {
 	case types.String:
 		return string(v)
 	case types.Bytes:
-		return []byte(v)
+		return base64.StdEncoding.EncodeToString([]byte(v))
 	case traits.Lister:
 		size := v.Size().Value().(int64)
 		result := make([]interface{}, size)

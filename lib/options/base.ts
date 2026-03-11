@@ -61,6 +61,10 @@ export type EnvOptionConfig =
   | {
       type: "MathExt";
       params?: import("./math.js").MathExtConfig;
+    }
+  | {
+      type: "EncodersExt";
+      params?: import("./encoders.js").EncodersExtConfig;
     };
 
 /**

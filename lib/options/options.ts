@@ -7,6 +7,7 @@ import { astValidators } from "./astValidators.js";
 import { crossTypeNumericComparisons } from "./crossTypeNumericComparisons.js";
 import { strings } from "./strings.js";
 import { math } from "./math.js";
+import { encoders } from "./encoders.js";
 
 /**
  * Helper object containing functions for creating CEL environment option configurations
@@ -160,4 +161,25 @@ export const Options = {
    * ```
    */
   math,
+
+  /**
+   * Create an EncodersExt option configuration to enable the CEL encoders extension library.
+   *
+   * This option provides encoding/decoding functions including
+   * base64.encode and base64.decode.
+   *
+   * @param config - Optional configuration for the encoders extension
+   * @returns An option configuration for enabling CEL encoder extensions
+   *
+   * @example
+   * ```typescript
+   * const env = await Env.new({
+   *   options: [Options.encoders()]
+   * });
+   *
+   * const program = await env.compile("base64.encode(b'hello')");
+   * const result = await program.eval(); // "aGVsbG8="
+   * ```
+   */
+  encoders,
 } as const;

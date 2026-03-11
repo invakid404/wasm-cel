@@ -24,6 +24,7 @@ export type {
 export type { CrossTypeNumericComparisonsConfig } from "./crossTypeNumericComparisons.js";
 export type { StringsExtConfig } from "./strings.js";
 export type { MathExtConfig } from "./math.js";
+export type { EncodersExtConfig } from "./encoders.js";
 
 // Re-export the Options helper object
 export { Options } from "./options.js";
