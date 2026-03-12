@@ -1137,6 +1137,12 @@ func JSONToValue(val interface{}, typeDef ...interface{}) ref.Val {
 		if coerced == nil {
 			return types.NullValue
 		}
+		if bytesVal, ok, err := taggedBytesToValue(coerced); ok {
+			if err != nil {
+				return types.NewErr("failed to decode $bytes: %v", err)
+			}
+			return bytesVal
+		}
 		return nativeToCELValue(coerced)
 	}
 
@@ -1182,21 +1188,11 @@ func JSONToValue(val interface{}, typeDef ...interface{}) ref.Val {
 		}
 		return types.NewDynamicList(types.DefaultTypeAdapter, items)
 	case map[string]interface{}:
-		// Detect tagged bytes: {"$bytes": "<base64>"}
-		if len(v) == 1 {
-			if b64, ok := v["$bytes"]; ok {
-				if b64Str, ok := b64.(string); ok {
-					decoded, err := base64.StdEncoding.DecodeString(b64Str)
-					if err != nil {
-						// Try raw (no padding) base64
-						decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
-						if err != nil {
-							return types.NewErr("failed to decode $bytes: %v", err)
-						}
-					}
-					return types.Bytes(decoded)
-				}
+		if bytesVal, ok, err := taggedBytesToValue(v); ok {
+			if err != nil {
+				return types.NewErr("failed to decode $bytes: %v", err)
 			}
+			return bytesVal
 		}
 		result := make(map[ref.Val]ref.Val)
 		for k, v := range v {
@@ -1222,6 +1218,53 @@ func nativeToCELValue(val interface{}) ref.Val {
 		return refVal
 	}
 	return types.DefaultTypeAdapter.NativeToValue(val)
+}
+
+func taggedBytesToValue(val interface{}) (ref.Val, bool, error) {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		if len(v) != 1 {
+			return nil, false, nil
+		}
+		b64, ok := v["$bytes"]
+		if !ok {
+			return nil, false, nil
+		}
+		b64Str, ok := b64.(string)
+		if !ok {
+			return nil, false, nil
+		}
+		decoded, err := base64.StdEncoding.DecodeString(b64Str)
+		if err != nil {
+			decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
+			if err != nil {
+				return nil, true, err
+			}
+		}
+		return types.Bytes(decoded), true, nil
+	case map[interface{}]interface{}:
+		if len(v) != 1 {
+			return nil, false, nil
+		}
+		b64, ok := v["$bytes"]
+		if !ok {
+			return nil, false, nil
+		}
+		b64Str, ok := b64.(string)
+		if !ok {
+			return nil, false, nil
+		}
+		decoded, err := base64.StdEncoding.DecodeString(b64Str)
+		if err != nil {
+			decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
+			if err != nil {
+				return nil, true, err
+			}
+		}
+		return types.Bytes(decoded), true, nil
+	default:
+		return nil, false, nil
+	}
 }
 
 // UnregisterFunctionCaller is an interface for unregistering functions

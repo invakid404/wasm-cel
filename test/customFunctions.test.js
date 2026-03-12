@@ -92,6 +92,20 @@ describe("Custom Functions", () => {
       await expect(tsProgram.eval()).resolves.toBe(2024);
       await expect(mapProgram.eval()).resolves.toBe(true);
     });
+
+    test("should decode declared bytes custom function returns", async () => {
+      const rawBytes = CELFunction.new("rawBytes")
+        .returns("bytes")
+        .implement(() => new Uint8Array([104, 105]));
+
+      const env = await Env.new({
+        functions: [rawBytes],
+      });
+
+      const program = await env.compile("size(rawBytes()) == 2");
+
+      await expect(program.eval()).resolves.toBe(true);
+    });
   });
 
   describe("String functions", () => {
