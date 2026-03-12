@@ -47,6 +47,21 @@ describe("CEL Math Extension", () => {
       expect(result).toBe(3);
       program.destroy();
     });
+
+    test("should work with int variable arguments", async () => {
+      const intEnv = await Env.new({
+        variables: [
+          { name: "a", type: "int" },
+          { name: "b", type: "int" },
+        ],
+        options: [Options.math()],
+      });
+      const program = await intEnv.compile("math.greatest(a, b)");
+      const result = await program.eval({ a: 10, b: 20 });
+      expect(result).toBe(20);
+      program.destroy();
+      intEnv.destroy();
+    });
   });
 
   describe("math.least", () => {

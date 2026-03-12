@@ -104,14 +104,16 @@ type ValidatorIssue = commonTypes.ValidatorIssue
 // EnvState holds a CEL environment
 type EnvState struct {
 	env       *cel.Env
-	implIDs   []string // Track function implementation IDs for cleanup
-	destroyed bool     // Track if environment has been destroyed
+	implIDs   []string  // Track function implementation IDs for cleanup
+	destroyed bool      // Track if environment has been destroyed
+	varDecls  []VarDecl // Track variable declarations for type coercion at eval time
 }
 
 // ProgramState holds a compiled CEL program
 type ProgramState struct {
-	prg   cel.Program
-	envID string // Track which environment created this program
+	prg      cel.Program
+	envID    string    // Track which environment created this program
+	varDecls []VarDecl // Variable declarations for type coercion at eval time
 }
 
 // FunctionRefCount tracks reference counts for function implementations
@@ -328,6 +330,7 @@ func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSO
 		env:       env,
 		implIDs:   implIDs,
 		destroyed: false,
+		varDecls:  varDecls,
 	}
 
 	return map[string]interface{}{
@@ -380,8 +383,9 @@ func Compile(envID string, exprStr string) map[string]interface{} {
 	programIDCounter++
 	programID := fmt.Sprintf("prg_%d", programIDCounter)
 	programs[programID] = &ProgramState{
-		prg:   prg,
-		envID: envID,
+		prg:      prg,
+		envID:    envID,
+		varDecls: envState.varDecls,
 	}
 
 	// Increment reference counts for all functions in this environment
@@ -497,8 +501,9 @@ func CompileDetailed(envID string, exprStr string) map[string]interface{} {
 	programIDCounter++
 	programID := fmt.Sprintf("prg_%d", programIDCounter)
 	programs[programID] = &ProgramState{
-		prg:   prg,
-		envID: envID,
+		prg:      prg,
+		envID:    envID,
+		varDecls: envState.varDecls,
 	}
 
 	// Increment reference counts for all functions in this environment
@@ -618,6 +623,105 @@ func preprocessValue(val interface{}) interface{} {
 	}
 }
 
+// coerceVarTypes walks the vars map and coerces values to match their declared
+// CEL types. This is necessary because JSON.Unmarshal always produces float64
+// for numbers when the target is interface{}, but CEL needs int64 for int-typed
+// variables and uint64 for uint-typed variables. Without this, the CEL runtime
+// sees types.Double at eval time even though the type checker selected overloads
+// for types.Int, causing "no such overload" errors on operations like string(x),
+// int(x), or x + 1.
+func coerceVarTypes(vars map[string]interface{}, varDecls []VarDecl) map[string]interface{} {
+	if len(varDecls) == 0 {
+		return vars
+	}
+
+	typeMap := make(map[string]interface{}, len(varDecls))
+	for _, vd := range varDecls {
+		typeMap[vd.Name] = vd.Type
+	}
+
+	result := make(map[string]interface{}, len(vars))
+	for k, v := range vars {
+		if typeDef, ok := typeMap[k]; ok {
+			result[k] = coerceValue(v, typeDef)
+		} else {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+// coerceValue coerces a single value to match the expected CEL type definition.
+func coerceValue(val interface{}, typeDef interface{}) interface{} {
+	if val == nil {
+		return nil
+	}
+
+	switch td := typeDef.(type) {
+	case string:
+		return coerceToNamedType(val, td)
+	case map[string]interface{}:
+		return coerceToComplexType(val, td)
+	}
+	return val
+}
+
+// coerceToNamedType handles coercion for simple type names like "int", "uint".
+func coerceToNamedType(val interface{}, typeName string) interface{} {
+	switch typeName {
+	case "int":
+		if f, ok := val.(float64); ok {
+			return int64(f)
+		}
+	case "uint":
+		if f, ok := val.(float64); ok {
+			return uint64(f)
+		}
+	}
+	return val
+}
+
+// coerceToComplexType handles coercion for complex types like list(int), map(string, int).
+func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) interface{} {
+	kind, ok := typeDefMap["kind"].(string)
+	if !ok {
+		return val
+	}
+
+	switch kind {
+	case "list":
+		arr, ok := val.([]interface{})
+		if !ok {
+			return val
+		}
+		elemType := typeDefMap["elementType"]
+		if elemType == nil {
+			return val
+		}
+		result := make([]interface{}, len(arr))
+		for i, item := range arr {
+			result[i] = coerceValue(item, elemType)
+		}
+		return result
+	case "map":
+		m, ok := val.(map[string]interface{})
+		if !ok {
+			return val
+		}
+		valueType := typeDefMap["valueType"]
+		if valueType == nil {
+			return val
+		}
+		result := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			result[k] = coerceValue(v, valueType)
+		}
+		return result
+	}
+
+	return val
+}
+
 // Eval evaluates a compiled program with the given variables
 func Eval(programID string, vars map[string]interface{}) map[string]interface{} {
 	programState, ok := programs[programID]
@@ -629,6 +733,11 @@ func Eval(programID string, vars map[string]interface{}) map[string]interface{} 
 
 	// Preprocess vars to convert tagged $bytes objects to []byte
 	processedVars := preprocessVars(vars)
+
+	// Coerce variable types based on declarations.
+	// JSON.Unmarshal always produces float64 for numbers; CEL needs int64/uint64
+	// for variables declared as int/uint.
+	processedVars = coerceVarTypes(processedVars, programState.varDecls)
 
 	// Evaluate the program with variables
 	out, _, err := programState.prg.Eval(processedVars)
