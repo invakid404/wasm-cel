@@ -763,10 +763,10 @@ import {
 
 To build the package from source, you'll need:
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Node.js 18 or later
 - Rust (stable)
-- `wasm-opt` installed via `cargo install wasm-opt`
+- `wasm-opt` installed via `cargo install wasm-opt --version 0.116.1 --locked`
 - pnpm (or npm/yarn)
 
 ```bash

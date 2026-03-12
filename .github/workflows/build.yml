@@ -33,7 +33,7 @@ jobs:
           version: latest
 
       - name: Install wasm-opt
-        run: cargo install wasm-opt
+        run: cargo install wasm-opt --version 0.116.1 --locked
 
       - name: Install dependencies
         run: pnpm install
@@ -77,7 +77,7 @@ jobs:
           version: latest
 
       - name: Install wasm-opt
-        run: cargo install wasm-opt
+        run: cargo install wasm-opt --version 0.116.1 --locked
 
       - name: Install dependencies
         run: pnpm install
