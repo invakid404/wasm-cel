@@ -72,6 +72,26 @@ describe("Custom Functions", () => {
       await expect(someProgram.eval()).resolves.toBe("ALICE");
       await expect(noneProgram.eval()).resolves.toBe(false);
     });
+
+    test("should coerce declared non-optional custom function return types", async () => {
+      const parseTs = CELFunction.new("parseTs")
+        .returns("timestamp")
+        .implement(() => "2024-01-02T03:04:05Z");
+
+      const buildScores = CELFunction.new("buildScores")
+        .returns({ kind: "map", keyType: "int", valueType: "string" })
+        .implement(() => ({ 1: "one", 2: "two" }));
+
+      const env = await Env.new({
+        functions: [parseTs, buildScores],
+      });
+
+      const tsProgram = await env.compile("parseTs().getFullYear()");
+      const mapProgram = await env.compile('buildScores()[1] == "one" && buildScores()[2] == "two"');
+
+      await expect(tsProgram.eval()).resolves.toBe(2024);
+      await expect(mapProgram.eval()).resolves.toBe(true);
+    });
   });
 
   describe("String functions", () => {

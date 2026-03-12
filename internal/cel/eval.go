@@ -1130,30 +1130,14 @@ func ValueToJSON(val ref.Val) interface{} {
 // JSONToValue converts a JSON-serializable value to a CEL ref.Val
 func JSONToValue(val interface{}, typeDef ...interface{}) ref.Val {
 	if len(typeDef) > 0 {
-		if typeDefMap, ok := typeDef[0].(map[string]interface{}); ok {
-			if kind, ok := typeDefMap["kind"].(string); ok && kind == "optional" {
-				if val == nil {
-					return types.OptionalNone
-				}
-				if opt, ok := val.(*types.Optional); ok {
-					return opt
-				}
-
-				innerType := typeDefMap["innerType"]
-				if innerType != nil {
-					coerced, err := coerceValue(val, innerType)
-					if err != nil {
-						return types.NewErr("failed to coerce optional value: %v", err)
-					}
-					if coerced == nil {
-						return types.OptionalNone
-					}
-					return types.OptionalOf(nativeToCELValue(coerced))
-				}
-
-				return types.OptionalOf(nativeToCELValue(val))
-			}
+		coerced, err := coerceValue(val, typeDef[0])
+		if err != nil {
+			return types.NewErr("failed to coerce value: %v", err)
 		}
+		if coerced == nil {
+			return types.NullValue
+		}
+		return nativeToCELValue(coerced)
 	}
 
 	if val == nil {
