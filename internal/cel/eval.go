@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 
 	"github.com/google/cel-go/cel"
@@ -742,6 +743,27 @@ func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) int
 			return val
 		}
 		valueType := typeDefMap["valueType"]
+		keyType, _ := typeDefMap["keyType"].(string)
+
+		// Non-string key types: parse string keys from JSON into the
+		// declared key type and build a map[interface{}]interface{}.
+		if keyType != "" && keyType != "string" {
+			result := make(map[interface{}]interface{}, len(m))
+			for k, v := range m {
+				typedKey := coerceMapKey(k, keyType)
+				if typedKey == nil {
+					return val // key parse failed, return uncoerced
+				}
+				if valueType != nil {
+					result[typedKey] = coerceValue(v, valueType)
+				} else {
+					result[typedKey] = v
+				}
+			}
+			return result
+		}
+
+		// String key type: coerce values only.
 		if valueType == nil {
 			return val
 		}
@@ -753,6 +775,38 @@ func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) int
 	}
 
 	return val
+}
+
+// coerceMapKey parses a JSON string key into the declared CEL key type.
+// Returns nil if the key cannot be parsed as the target type.
+func coerceMapKey(key string, keyType string) interface{} {
+	switch keyType {
+	case "int":
+		n, err := strconv.ParseInt(key, 10, 64)
+		if err != nil {
+			return nil
+		}
+		return n
+	case "uint":
+		n, err := strconv.ParseUint(key, 10, 64)
+		if err != nil {
+			return nil
+		}
+		return n
+	case "bool":
+		b, err := strconv.ParseBool(key)
+		if err != nil {
+			return nil
+		}
+		return b
+	case "double":
+		f, err := strconv.ParseFloat(key, 64)
+		if err != nil {
+			return nil
+		}
+		return f
+	}
+	return key
 }
 
 // Eval evaluates a compiled program with the given variables

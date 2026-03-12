@@ -640,4 +640,96 @@ describe("CEL Evaluation", () => {
     // them defensively. However, they are untestable from JS because
     // serializeTypeDef normalizes them to "dyn" before they reach Go.
   });
+
+  describe("Non-string map key type coercion", () => {
+    test("map(int, string) should coerce string keys to int", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "m",
+            type: { kind: "map", keyType: "int", valueType: "string" },
+          },
+        ],
+      });
+      const program = await env.compile('m[1]');
+      const result = await program.eval({ m: { 1: "one" } });
+      expect(result).toBe("one");
+    });
+
+    test("map(int, int) should coerce both keys and values", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "m",
+            type: { kind: "map", keyType: "int", valueType: "int" },
+          },
+        ],
+      });
+      const program = await env.compile("m[1] + m[2]");
+      const result = await program.eval({ m: { 1: 10, 2: 20 } });
+      expect(result).toBe(30);
+    });
+
+    test("map(uint, string) should coerce string keys to uint", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "m",
+            type: { kind: "map", keyType: "uint", valueType: "string" },
+          },
+        ],
+      });
+      const program = await env.compile('m[1u]');
+      const result = await program.eval({ m: { 1: "one" } });
+      expect(result).toBe("one");
+    });
+
+    test("map(int, string) should work with string() cast on value", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "m",
+            type: { kind: "map", keyType: "int", valueType: "int" },
+          },
+        ],
+      });
+      const program = await env.compile("string(m[1])");
+      const result = await program.eval({ m: { 1: 42 } });
+      expect(result).toBe("42");
+    });
+
+    test("map(int, list(int)) should coerce keys and nested values", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "m",
+            type: {
+              kind: "map",
+              keyType: "int",
+              valueType: { kind: "list", elementType: "int" },
+            },
+          },
+        ],
+      });
+      const program = await env.compile("m[1][0] + m[2][0]");
+      const result = await program.eval({
+        m: { 1: [10], 2: [20] },
+      });
+      expect(result).toBe(30);
+    });
+
+    test("map(string, int) should still work (no key coercion needed)", async () => {
+      const env = await Env.new({
+        variables: [
+          {
+            name: "m",
+            type: { kind: "map", keyType: "string", valueType: "int" },
+          },
+        ],
+      });
+      const program = await env.compile('m["a"] + m["b"]');
+      const result = await program.eval({ m: { a: 3, b: 7 } });
+      expect(result).toBe(10);
+    });
+  });
 });
