@@ -20,6 +20,7 @@ const module = isBrowser
 // Re-export everything
 export const { Program, Env, init } = module;
 export { listType, mapType, CELFunction } from "./functions.js";
+export type { CELTypeToTS, ExtractParamTypes } from "./functions.js";
 export { Options } from "./options/index.js";
 
 // Re-export types

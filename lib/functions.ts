@@ -9,10 +9,21 @@ import type {
 } from "./types.js";
 
 /**
- * Maps CEL types to TypeScript types
- * Uses a depth counter to limit recursion and avoid "excessively deep" errors
+ * Maps a CEL type definition to its corresponding TypeScript type.
+ *
+ * Useful for deriving the TS type that a CEL value will have at runtime,
+ * e.g. when building wrappers or utilities on top of {@link CELFunction}.
+ *
+ * @example
+ * ```typescript
+ * import type { CELTypeToTS } from "wasm-cel";
+ *
+ * type N = CELTypeToTS<"int">;    // number
+ * type S = CELTypeToTS<"string">; // string
+ * type L = CELTypeToTS<{ kind: "list"; elementType: "bool" }>; // boolean[]
+ * ```
  */
-type CELTypeToTS<
+export type CELTypeToTS<
   T extends CELTypeDef,
   Depth extends readonly unknown[] = [],
 > = Depth["length"] extends 5
@@ -44,11 +55,30 @@ type CELTypeToTS<
                       : never;
 
 /**
- * Extracts TypeScript parameter types from a tuple of CEL function parameters
+ * Extracts a TypeScript parameter-type tuple from CEL function parameter definitions.
+ *
+ * Given a tuple of {@link CELFunctionParam} entries (as accumulated by the builder),
+ * produces the matching tuple of TypeScript types — the same tuple used for the
+ * `impl` callback signature in {@link CELFunction.implement}.
+ *
+ * @example
+ * ```typescript
+ * import type { ExtractParamTypes, CELFunctionParam } from "wasm-cel";
+ *
+ * type Params = readonly [
+ *   { name: "a"; type: "int"; optional: false },
+ *   { name: "b"; type: "string"; optional: false },
+ *   { name: "c"; type: "bool"; optional: true },
+ * ];
+ *
+ * type Args = ExtractParamTypes<Params>; // [number, string, boolean | undefined]
+ * ```
  */
-type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
+export type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
   [K in keyof P]: P[K] extends CELFunctionParam
-    ? CELTypeToTS<P[K]["type"]>
+    ? P[K]["optional"] extends true
+      ? CELTypeToTS<P[K]["type"]> | undefined
+      : CELTypeToTS<P[K]["type"]>
     : never;
 };
 
@@ -115,23 +145,23 @@ export class CELFunction<
   /**
    * Add a parameter to the function
    */
-  param<T extends CELTypeDef>(
+  param<T extends CELTypeDef, Optional extends boolean = false>(
     this: CELFunction<"params", Params, ReturnType>,
     name: string,
     type: T,
-    optional = false,
+    optional?: Optional,
   ): CELFunction<
     "params",
-    readonly [...Params, { name: string; type: T; optional: boolean }],
+    readonly [...Params, { name: string; type: T; optional: Optional }],
     ReturnType
   > {
     const newParams = [
       ...this.params,
-      { name, type, optional },
+      { name, type, optional: (optional ?? false) as Optional },
     ] as CELFunctionParam[];
     return new CELFunction<
       "params",
-      readonly [...Params, { name: string; type: T; optional: boolean }],
+      readonly [...Params, { name: string; type: T; optional: Optional }],
       ReturnType
     >(this.name, newParams, this.returnType, this.overloads);
   }
