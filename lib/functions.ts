@@ -68,14 +68,17 @@ export type CELTypeToTS<
  * type Params = readonly [
  *   { name: "a"; type: "int"; optional: false },
  *   { name: "b"; type: "string"; optional: false },
+ *   { name: "c"; type: "bool"; optional: true },
  * ];
  *
- * type Args = ExtractParamTypes<Params>; // [number, string]
+ * type Args = ExtractParamTypes<Params>; // [number, string, boolean | undefined]
  * ```
  */
 export type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
   [K in keyof P]: P[K] extends CELFunctionParam
-    ? CELTypeToTS<P[K]["type"]>
+    ? P[K]["optional"] extends true
+      ? CELTypeToTS<P[K]["type"]> | undefined
+      : CELTypeToTS<P[K]["type"]>
     : never;
 };
 
@@ -142,23 +145,23 @@ export class CELFunction<
   /**
    * Add a parameter to the function
    */
-  param<T extends CELTypeDef>(
+  param<T extends CELTypeDef, Optional extends boolean = false>(
     this: CELFunction<"params", Params, ReturnType>,
     name: string,
     type: T,
-    optional = false,
+    optional?: Optional,
   ): CELFunction<
     "params",
-    readonly [...Params, { name: string; type: T; optional: boolean }],
+    readonly [...Params, { name: string; type: T; optional: Optional }],
     ReturnType
   > {
     const newParams = [
       ...this.params,
-      { name, type, optional },
+      { name, type, optional: (optional ?? false) as Optional },
     ] as CELFunctionParam[];
     return new CELFunction<
       "params",
-      readonly [...Params, { name: string; type: T; optional: boolean }],
+      readonly [...Params, { name: string; type: T; optional: Optional }],
       ReturnType
     >(this.name, newParams, this.returnType, this.overloads);
   }
