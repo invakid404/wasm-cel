@@ -59,7 +59,7 @@
   },
   "files": ["dist/**/*", "main.wasm", "wasm_exec.cjs", "README.md"],
   "devDependencies": {
-    "@types/node": "24.10.1",
+    "@types/node": "24.12.0",
     "@vitest/browser": "4.0.18",
     "@vitest/browser-playwright": "4.0.18",
     "@vitest/coverage-v8": "4.0.18",
