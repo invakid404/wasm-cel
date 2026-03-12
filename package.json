@@ -31,6 +31,7 @@
     "build:ts": "tsc",
     "build:all": "pnpm run build && pnpm run build:copy-wasm-exec && pnpm run build:ts",
     "prepublishOnly": "pnpm run build:all",
+    "test:types": "pnpm run build:ts && tsc -p tsconfig.type-tests.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -1,4 +1,4 @@
-import { Env } from "../dist/index.js";
+import { Env, Options, optionalType } from "../dist/index.js";
 
 describe("CEL Evaluation", () => {
   describe("Basic arithmetic", () => {
@@ -73,6 +73,22 @@ describe("CEL Evaluation", () => {
       });
       const program = await env.compile("x + y");
       await expect(program.eval({ x: 10 })).rejects.toThrow();
+    });
+
+    test("should evaluate optional variables from null as optional.none()", async () => {
+      const env = await Env.new({
+        variables: [{ name: "maybeName", type: optionalType("string") }],
+        options: [Options.optionalTypes()],
+      });
+      const program = await env.compile('{"hasValue": maybeName.hasValue(), "value": maybeName.orValue("guest")}');
+
+      const result = await program.eval({ maybeName: null });
+
+      expect(result).toEqual({ hasValue: false, value: "guest" });
+
+      const presentResult = await program.eval({ maybeName: "Alice" });
+
+      expect(presentResult).toEqual({ hasValue: true, value: "Alice" });
     });
   });
 

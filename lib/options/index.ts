@@ -13,7 +13,11 @@ export type {
 } from "./base.js";
 
 // Re-export specific option types
-export type { OptionalTypesConfig } from "./optionalTypes.js";
+export type {
+  CELOptionalType,
+  OptionalTypesConfig,
+  OptionalTypesExt,
+} from "./optionalTypes.js";
 export type {
   ValidationIssue,
   ValidationContext,

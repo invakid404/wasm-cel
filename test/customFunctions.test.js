@@ -1,4 +1,4 @@
-import { Env, CELFunction, listType } from "../dist/index.js";
+import { Env, CELFunction, Options, listType, optionalType } from "../dist/index.js";
 
 describe("Custom Functions", () => {
   describe("Basic function definition and usage", () => {
@@ -49,6 +49,62 @@ describe("Custom Functions", () => {
       const program = await env.compile("subtract(x, y)");
       const result = await program.eval({ x: 100, y: 30 });
       expect(result).toBe(70);
+    });
+
+    test("should bridge optional custom function results from JavaScript", async () => {
+      const maybeUpper = CELFunction.new("maybeUpper")
+        .param("value", "string")
+        .returns(optionalType("string"))
+        .implement((value) => String(value).toUpperCase());
+
+      const noValue = CELFunction.new("noValue")
+        .returns(optionalType("string"))
+        .implement(() => null);
+
+      const env = await Env.new({
+        functions: [maybeUpper, noValue],
+        options: [Options.optionalTypes()],
+      });
+
+      const someProgram = await env.compile('maybeUpper("alice").orValue("guest")');
+      const noneProgram = await env.compile("noValue().hasValue()");
+
+      await expect(someProgram.eval()).resolves.toBe("ALICE");
+      await expect(noneProgram.eval()).resolves.toBe(false);
+    });
+
+    test("should coerce declared non-optional custom function return types", async () => {
+      const parseTs = CELFunction.new("parseTs")
+        .returns("timestamp")
+        .implement(() => "2024-01-02T03:04:05Z");
+
+      const buildScores = CELFunction.new("buildScores")
+        .returns({ kind: "map", keyType: "int", valueType: "string" })
+        .implement(() => ({ 1: "one", 2: "two" }));
+
+      const env = await Env.new({
+        functions: [parseTs, buildScores],
+      });
+
+      const tsProgram = await env.compile("parseTs().getFullYear()");
+      const mapProgram = await env.compile('buildScores()[1] == "one" && buildScores()[2] == "two"');
+
+      await expect(tsProgram.eval()).resolves.toBe(2024);
+      await expect(mapProgram.eval()).resolves.toBe(true);
+    });
+
+    test("should decode declared bytes custom function returns", async () => {
+      const rawBytes = CELFunction.new("rawBytes")
+        .returns("bytes")
+        .implement(() => new Uint8Array([104, 105]));
+
+      const env = await Env.new({
+        functions: [rawBytes],
+      });
+
+      const program = await env.compile("size(rawBytes()) == 2");
+
+      await expect(program.eval()).resolves.toBe(true);
     });
   });
 

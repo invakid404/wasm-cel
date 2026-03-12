@@ -258,7 +258,7 @@ func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSO
 							return types.NewErr("function call error: %v", err)
 						}
 						// Convert result back to CEL value
-						return JSONToValue(result)
+						return JSONToValue(result, funcDef.ReturnType)
 					}
 
 					return types.NewErr("JavaScript function caller not set")
@@ -660,6 +660,12 @@ func coerceVarTypes(vars map[string]interface{}, varDecls []VarDecl) (map[string
 
 // coerceValue coerces a single value to match the expected CEL type definition.
 func coerceValue(val interface{}, typeDef interface{}) (interface{}, error) {
+	if typeDefMap, ok := typeDef.(map[string]interface{}); ok {
+		if kind, ok := typeDefMap["kind"].(string); ok && kind == "optional" {
+			return coerceToComplexType(val, typeDefMap)
+		}
+	}
+
 	if val == nil {
 		return nil, nil
 	}
@@ -751,6 +757,31 @@ func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) (in
 	}
 
 	switch kind {
+	case "optional":
+		if val == nil {
+			return types.OptionalNone, nil
+		}
+
+		if opt, ok := val.(*types.Optional); ok {
+			if !opt.HasValue() {
+				return types.OptionalNone, nil
+			}
+			return opt, nil
+		}
+
+		innerType := typeDefMap["innerType"]
+		if innerType == nil {
+			return types.OptionalOf(nativeToCELValue(val)), nil
+		}
+
+		coerced, err := coerceValue(val, innerType)
+		if err != nil {
+			return nil, err
+		}
+		if coerced == nil {
+			return types.OptionalNone, nil
+		}
+		return types.OptionalOf(nativeToCELValue(coerced)), nil
 	case "list":
 		arr, ok := val.([]interface{})
 		if !ok {
@@ -927,6 +958,14 @@ func parseTypeDef(typeDef interface{}) *exprpb.Type {
 				valueType = parseTypeDef(vt)
 			}
 			return decls.NewMapType(keyType, valueType)
+		case "optional":
+			if innerType, ok := typeDefMap["innerType"].(map[string]interface{}); ok {
+				return decls.NewOptionalType(parseTypeDef(innerType))
+			}
+			if innerTypeStr, ok := typeDefMap["innerType"].(string); ok {
+				return decls.NewOptionalType(parseTypeDef(innerTypeStr))
+			}
+			return decls.NewOptionalType(decls.Dyn)
 		}
 	}
 
@@ -1012,6 +1051,14 @@ func typeToJSON(exprType *exprpb.Type) interface{} {
 			"keyType":   typeToJSON(mapType.GetKeyType()),
 			"valueType": typeToJSON(mapType.GetValueType()),
 		}
+	case *exprpb.Type_AbstractType_:
+		abstractType := exprType.GetAbstractType()
+		if abstractType.GetName() == "optional_type" && len(abstractType.GetParameterTypes()) == 1 {
+			return map[string]interface{}{
+				"kind":      "optional",
+				"innerType": typeToJSON(abstractType.GetParameterTypes()[0]),
+			}
+		}
 	case *exprpb.Type_Null:
 		return "null"
 	case *exprpb.Type_Dyn:
@@ -1081,7 +1128,24 @@ func ValueToJSON(val ref.Val) interface{} {
 }
 
 // JSONToValue converts a JSON-serializable value to a CEL ref.Val
-func JSONToValue(val interface{}) ref.Val {
+func JSONToValue(val interface{}, typeDef ...interface{}) ref.Val {
+	if len(typeDef) > 0 {
+		coerced, err := coerceValue(val, typeDef[0])
+		if err != nil {
+			return types.NewErr("failed to coerce value: %v", err)
+		}
+		if coerced == nil {
+			return types.NullValue
+		}
+		if bytesVal, ok, err := taggedBytesToValue(coerced); ok {
+			if err != nil {
+				return types.NewErr("failed to decode $bytes: %v", err)
+			}
+			return bytesVal
+		}
+		return nativeToCELValue(coerced)
+	}
+
 	if val == nil {
 		return types.NullValue
 	}
@@ -1124,21 +1188,11 @@ func JSONToValue(val interface{}) ref.Val {
 		}
 		return types.NewDynamicList(types.DefaultTypeAdapter, items)
 	case map[string]interface{}:
-		// Detect tagged bytes: {"$bytes": "<base64>"}
-		if len(v) == 1 {
-			if b64, ok := v["$bytes"]; ok {
-				if b64Str, ok := b64.(string); ok {
-					decoded, err := base64.StdEncoding.DecodeString(b64Str)
-					if err != nil {
-						// Try raw (no padding) base64
-						decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
-						if err != nil {
-							return types.NewErr("failed to decode $bytes: %v", err)
-						}
-					}
-					return types.Bytes(decoded)
-				}
+		if bytesVal, ok, err := taggedBytesToValue(v); ok {
+			if err != nil {
+				return types.NewErr("failed to decode $bytes: %v", err)
 			}
+			return bytesVal
 		}
 		result := make(map[ref.Val]ref.Val)
 		for k, v := range v {
@@ -1156,6 +1210,60 @@ func JSONToValue(val interface{}) ref.Val {
 			return types.NewErr("failed to unmarshal value: %v", err)
 		}
 		return JSONToValue(jsonVal)
+	}
+}
+
+func nativeToCELValue(val interface{}) ref.Val {
+	if refVal, ok := val.(ref.Val); ok {
+		return refVal
+	}
+	return types.DefaultTypeAdapter.NativeToValue(val)
+}
+
+func taggedBytesToValue(val interface{}) (ref.Val, bool, error) {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		if len(v) != 1 {
+			return nil, false, nil
+		}
+		b64, ok := v["$bytes"]
+		if !ok {
+			return nil, false, nil
+		}
+		b64Str, ok := b64.(string)
+		if !ok {
+			return nil, false, nil
+		}
+		decoded, err := base64.StdEncoding.DecodeString(b64Str)
+		if err != nil {
+			decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
+			if err != nil {
+				return nil, true, err
+			}
+		}
+		return types.Bytes(decoded), true, nil
+	case map[interface{}]interface{}:
+		if len(v) != 1 {
+			return nil, false, nil
+		}
+		b64, ok := v["$bytes"]
+		if !ok {
+			return nil, false, nil
+		}
+		b64Str, ok := b64.(string)
+		if !ok {
+			return nil, false, nil
+		}
+		decoded, err := base64.StdEncoding.DecodeString(b64Str)
+		if err != nil {
+			decoded, err = base64.RawStdEncoding.DecodeString(b64Str)
+			if err != nil {
+				return nil, true, err
+			}
+		}
+		return types.Bytes(decoded), true, nil
+	default:
+		return nil, false, nil
 	}
 }
 
