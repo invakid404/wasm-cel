@@ -2,7 +2,9 @@ import * as browser from "../dist/browser.js";
 import * as main from "../dist/index.js";
 
 describe("browser entry exports", () => {
-  test("re-exports optionalType from the browser entry", () => {
+  test(
+    "re-exports optionalType, CELFunction, listType, and mapType from the browser entry",
+    () => {
     expect(browser).toHaveProperty("optionalType");
     expect(browser.optionalType).toBe(main.optionalType);
     expect(browser).toHaveProperty("CELFunction");
@@ -11,5 +13,6 @@ describe("browser entry exports", () => {
     expect(browser.listType).toBe(main.listType);
     expect(browser).toHaveProperty("mapType");
     expect(browser.mapType).toBe(main.mapType);
-  });
+    },
+  );
 });
