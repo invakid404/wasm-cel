@@ -633,9 +633,9 @@ func preprocessValue(val interface{}) interface{} {
 // sees types.Double at eval time even though the type checker selected overloads
 // for types.Int, causing "no such overload" errors on operations like string(x),
 // int(x), or x + 1.
-func coerceVarTypes(vars map[string]interface{}, varDecls []VarDecl) map[string]interface{} {
+func coerceVarTypes(vars map[string]interface{}, varDecls []VarDecl) (map[string]interface{}, error) {
 	if len(varDecls) == 0 {
-		return vars
+		return vars, nil
 	}
 
 	typeMap := make(map[string]interface{}, len(varDecls))
@@ -646,18 +646,22 @@ func coerceVarTypes(vars map[string]interface{}, varDecls []VarDecl) map[string]
 	result := make(map[string]interface{}, len(vars))
 	for k, v := range vars {
 		if typeDef, ok := typeMap[k]; ok {
-			result[k] = coerceValue(v, typeDef)
+			coerced, err := coerceValue(v, typeDef)
+			if err != nil {
+				return nil, fmt.Errorf("variable %q: %w", k, err)
+			}
+			result[k] = coerced
 		} else {
 			result[k] = v
 		}
 	}
-	return result
+	return result, nil
 }
 
 // coerceValue coerces a single value to match the expected CEL type definition.
-func coerceValue(val interface{}, typeDef interface{}) interface{} {
+func coerceValue(val interface{}, typeDef interface{}) (interface{}, error) {
 	if val == nil {
-		return nil
+		return nil, nil
 	}
 
 	switch td := typeDef.(type) {
@@ -673,18 +677,22 @@ func coerceValue(val interface{}, typeDef interface{}) interface{} {
 		}
 		return coerceToComplexType(val, td)
 	}
-	return val
+	return val, nil
 }
 
 // coerceToNamedType handles coercion for simple type names like "int", "uint".
 // If the float64 value is not a whole number or is out of range for the target
 // type, the value is returned uncoerced so that CEL reports the type mismatch.
 //
+// For timestamp and duration types, invalid strings produce an explicit error
+// because the uncoerced string would still be valid in CEL string operations,
+// masking the type mismatch.
+//
 // Range bounds use exclusive upper limits that are exactly representable in
 // float64. math.MaxInt64 (2^63-1) and math.MaxUint64 (2^64-1) round up to
 // 2^63 and 2^64 respectively when converted to float64, so comparing with
 // them directly would let those exact boundary values slip through.
-func coerceToNamedType(val interface{}, typeName string) interface{} {
+func coerceToNamedType(val interface{}, typeName string) (interface{}, error) {
 	const (
 		minInt64Float      = -1 << 63 // -9223372036854775808.0, exact in float64
 		maxInt64Exclusive  = 1 << 63  // 9223372036854775808.0, exact in float64
@@ -695,22 +703,22 @@ func coerceToNamedType(val interface{}, typeName string) interface{} {
 	case "int":
 		if f, ok := val.(float64); ok {
 			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Floor(f) {
-				return val
+				return val, nil
 			}
 			if f < minInt64Float || f >= maxInt64Exclusive {
-				return val
+				return val, nil
 			}
-			return int64(f)
+			return int64(f), nil
 		}
 	case "uint":
 		if f, ok := val.(float64); ok {
 			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Floor(f) || f < 0 {
-				return val
+				return val, nil
 			}
 			if f >= maxUint64Exclusive {
-				return val
+				return val, nil
 			}
-			return uint64(f)
+			return uint64(f), nil
 		}
 	case "timestamp":
 		if s, ok := val.(string); ok {
@@ -718,49 +726,53 @@ func coerceToNamedType(val interface{}, typeName string) interface{} {
 			if err != nil {
 				t, err = time.Parse(time.RFC3339Nano, s)
 				if err != nil {
-					return val
+					return nil, fmt.Errorf("invalid timestamp %q: must be RFC3339 format", s)
 				}
 			}
-			return t
+			return t, nil
 		}
 	case "duration":
 		if s, ok := val.(string); ok {
 			d, err := time.ParseDuration(s)
 			if err != nil {
-				return val
+				return nil, fmt.Errorf("invalid duration %q: must be a valid duration string (e.g. \"1h30m\", \"3600s\")", s)
 			}
-			return d
+			return d, nil
 		}
 	}
-	return val
+	return val, nil
 }
 
 // coerceToComplexType handles coercion for complex types like list(int), map(string, int).
-func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) interface{} {
+func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) (interface{}, error) {
 	kind, ok := typeDefMap["kind"].(string)
 	if !ok {
-		return val
+		return val, nil
 	}
 
 	switch kind {
 	case "list":
 		arr, ok := val.([]interface{})
 		if !ok {
-			return val
+			return val, nil
 		}
 		elemType := typeDefMap["elementType"]
 		if elemType == nil {
-			return val
+			return val, nil
 		}
 		result := make([]interface{}, len(arr))
 		for i, item := range arr {
-			result[i] = coerceValue(item, elemType)
+			coerced, err := coerceValue(item, elemType)
+			if err != nil {
+				return nil, fmt.Errorf("list element %d: %w", i, err)
+			}
+			result[i] = coerced
 		}
-		return result
+		return result, nil
 	case "map":
 		m, ok := val.(map[string]interface{})
 		if !ok {
-			return val
+			return val, nil
 		}
 		valueType := typeDefMap["valueType"]
 		keyType, _ := typeDefMap["keyType"].(string)
@@ -772,29 +784,37 @@ func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) int
 			for k, v := range m {
 				typedKey := coerceMapKey(k, keyType)
 				if typedKey == nil {
-					return val // key parse failed, return uncoerced
+					return val, nil // key parse failed, return uncoerced
 				}
 				if valueType != nil {
-					result[typedKey] = coerceValue(v, valueType)
+					coerced, err := coerceValue(v, valueType)
+					if err != nil {
+						return nil, fmt.Errorf("map key %q: %w", k, err)
+					}
+					result[typedKey] = coerced
 				} else {
 					result[typedKey] = v
 				}
 			}
-			return result
+			return result, nil
 		}
 
 		// String key type: coerce values only.
 		if valueType == nil {
-			return val
+			return val, nil
 		}
 		result := make(map[string]interface{}, len(m))
 		for k, v := range m {
-			result[k] = coerceValue(v, valueType)
+			coerced, err := coerceValue(v, valueType)
+			if err != nil {
+				return nil, fmt.Errorf("map key %q: %w", k, err)
+			}
+			result[k] = coerced
 		}
-		return result
+		return result, nil
 	}
 
-	return val
+	return val, nil
 }
 
 // coerceMapKey parses a JSON string key into the declared CEL key type.
@@ -844,7 +864,12 @@ func Eval(programID string, vars map[string]interface{}) map[string]interface{} 
 	// Coerce variable types based on declarations.
 	// JSON.Unmarshal always produces float64 for numbers; CEL needs int64/uint64
 	// for variables declared as int/uint.
-	processedVars = coerceVarTypes(processedVars, programState.varDecls)
+	processedVars, coerceErr := coerceVarTypes(processedVars, programState.varDecls)
+	if coerceErr != nil {
+		return map[string]interface{}{
+			"error": fmt.Sprintf("type coercion error: %v", coerceErr),
+		}
+	}
 
 	// Evaluate the program with variables
 	out, _, err := programState.prg.Eval(processedVars)

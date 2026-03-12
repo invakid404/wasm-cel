@@ -782,5 +782,23 @@ describe("CEL Evaluation", () => {
       // Result should be a timestamp string
       expect(typeof result).toBe("string");
     });
+
+    test("invalid timestamp string should be rejected", async () => {
+      const env = await Env.new({
+        variables: [{ name: "t", type: "timestamp" }],
+      });
+      const program = await env.compile("t.getFullYear()");
+      await expect(
+        program.eval({ t: "not-a-timestamp" })
+      ).rejects.toThrow();
+    });
+
+    test("invalid duration string should be rejected", async () => {
+      const env = await Env.new({
+        variables: [{ name: "d", type: "duration" }],
+      });
+      const program = await env.compile("d + d");
+      await expect(program.eval({ d: "invalid" })).rejects.toThrow();
+    });
   });
 });
