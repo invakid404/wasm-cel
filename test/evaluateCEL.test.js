@@ -565,5 +565,23 @@ describe("CEL Evaluation", () => {
       });
       expect(result).toBe("100");
     });
+
+    test("fractional value for int variable should not be silently truncated", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "int" }],
+      });
+      const program = await env.compile("x + 1");
+      // 1.9 is not a valid int - should fail rather than silently become 1
+      await expect(program.eval({ x: 1.9 })).rejects.toThrow();
+    });
+
+    test("negative value for uint variable should not be coerced", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "uint" }],
+      });
+      const program = await env.compile("x + 1u");
+      // -5 is not a valid uint - should fail rather than produce garbage
+      await expect(program.eval({ x: -5 })).rejects.toThrow();
+    });
   });
 });

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/google/cel-go/cel"
@@ -661,20 +662,41 @@ func coerceValue(val interface{}, typeDef interface{}) interface{} {
 	case string:
 		return coerceToNamedType(val, td)
 	case map[string]interface{}:
+		// Mirror parseTypeDef fallbacks: { type: "int" } or { name: "int" }
+		if typeName, ok := td["type"].(string); ok {
+			return coerceToNamedType(val, typeName)
+		}
+		if typeName, ok := td["name"].(string); ok {
+			return coerceToNamedType(val, typeName)
+		}
 		return coerceToComplexType(val, td)
 	}
 	return val
 }
 
 // coerceToNamedType handles coercion for simple type names like "int", "uint".
+// If the float64 value is not a whole number or is out of range for the target
+// type, the value is returned uncoerced so that CEL reports the type mismatch.
 func coerceToNamedType(val interface{}, typeName string) interface{} {
 	switch typeName {
 	case "int":
 		if f, ok := val.(float64); ok {
+			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Floor(f) {
+				return val
+			}
+			if f > math.MaxInt64 || f < math.MinInt64 {
+				return val
+			}
 			return int64(f)
 		}
 	case "uint":
 		if f, ok := val.(float64); ok {
+			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Floor(f) || f < 0 {
+				return val
+			}
+			if f > math.MaxUint64 {
+				return val
+			}
 			return uint64(f)
 		}
 	}
