@@ -584,7 +584,7 @@ describe("CEL Evaluation", () => {
       await expect(program.eval({ x: -5 })).rejects.toThrow();
     });
 
-    test("2^53 (max safe integer) should coerce to int correctly", async () => {
+    test("MAX_SAFE_INTEGER (2^53-1) should coerce to int correctly", async () => {
       const env = await Env.new({
         variables: [{ name: "x", type: "int" }],
       });
