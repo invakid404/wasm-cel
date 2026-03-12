@@ -781,7 +781,7 @@ func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) (in
 		if coerced == nil {
 			return types.OptionalNone, nil
 		}
-		return types.OptionalOf(JSONToValue(coerced, innerType)), nil
+		return types.OptionalOf(nativeToCELValue(coerced)), nil
 	case "list":
 		arr, ok := val.([]interface{})
 		if !ok {
@@ -1148,7 +1148,7 @@ func JSONToValue(val interface{}, typeDef ...interface{}) ref.Val {
 					if coerced == nil {
 						return types.OptionalNone
 					}
-					return types.OptionalOf(JSONToValue(coerced, innerType))
+					return types.OptionalOf(nativeToCELValue(coerced))
 				}
 
 				return types.OptionalOf(nativeToCELValue(val))

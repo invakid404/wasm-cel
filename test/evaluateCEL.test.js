@@ -85,6 +85,10 @@ describe("CEL Evaluation", () => {
       const result = await program.eval({ maybeName: null });
 
       expect(result).toEqual({ hasValue: false, value: "guest" });
+
+      const presentResult = await program.eval({ maybeName: "Alice" });
+
+      expect(presentResult).toEqual({ hasValue: true, value: "Alice" });
     });
   });
 
