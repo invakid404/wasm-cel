@@ -205,6 +205,7 @@ export type {
 } from "./types.js";
 
 export { listType, mapType, CELFunction } from "./functions.js";
+export type { CELTypeToTS, ExtractParamTypes } from "./functions.js";
 export { Options } from "./options/index.js";
 export type {
   EnvOptionConfig,
