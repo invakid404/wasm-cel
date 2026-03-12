@@ -732,4 +732,55 @@ describe("CEL Evaluation", () => {
       expect(result).toBe(10);
     });
   });
+
+  describe("Timestamp and duration type coercion", () => {
+    test("timestamp variable should work with getFullYear", async () => {
+      const env = await Env.new({
+        variables: [{ name: "t", type: "timestamp" }],
+      });
+      const program = await env.compile("t.getFullYear()");
+      const result = await program.eval({ t: "2024-06-15T10:30:00Z" });
+      expect(result).toBe(2024);
+    });
+
+    test("timestamp variable should support comparison", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "a", type: "timestamp" },
+          { name: "b", type: "timestamp" },
+        ],
+      });
+      const program = await env.compile("a < b");
+      const result = await program.eval({
+        a: "2024-01-01T00:00:00Z",
+        b: "2025-01-01T00:00:00Z",
+      });
+      expect(result).toBe(true);
+    });
+
+    test("duration variable should support arithmetic", async () => {
+      const env = await Env.new({
+        variables: [{ name: "d", type: "duration" }],
+      });
+      const program = await env.compile("d + d");
+      const result = await program.eval({ d: "3600s" });
+      expect(result).toBe("2h0m0s");
+    });
+
+    test("timestamp + duration should work", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "t", type: "timestamp" },
+          { name: "d", type: "duration" },
+        ],
+      });
+      const program = await env.compile("t + d");
+      const result = await program.eval({
+        t: "2024-01-01T00:00:00Z",
+        d: "3600s",
+      });
+      // Result should be a timestamp string
+      expect(typeof result).toBe("string");
+    });
+  });
 });

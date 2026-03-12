@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
@@ -710,6 +711,25 @@ func coerceToNamedType(val interface{}, typeName string) interface{} {
 				return val
 			}
 			return uint64(f)
+		}
+	case "timestamp":
+		if s, ok := val.(string); ok {
+			t, err := time.Parse(time.RFC3339, s)
+			if err != nil {
+				t, err = time.Parse(time.RFC3339Nano, s)
+				if err != nil {
+					return val
+				}
+			}
+			return t
+		}
+	case "duration":
+		if s, ok := val.(string); ok {
+			d, err := time.ParseDuration(s)
+			if err != nil {
+				return val
+			}
+			return d
 		}
 	}
 	return val
