@@ -765,7 +765,8 @@ To build the package from source, you'll need:
 
 - Go 1.21 or later
 - Node.js 18 or later
-- `wasm-opt` (from Binaryen)
+- Rust (stable)
+- `wasm-opt` installed via `cargo install wasm-opt`
 - pnpm (or npm/yarn)
 
 ```bash

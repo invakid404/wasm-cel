@@ -26,7 +26,7 @@
     "./wasm_exec.cjs": "./wasm_exec.cjs"
   },
   "scripts": {
-    "build": "GOOS=js GOARCH=wasm go build -ldflags '-s -w' -o main.wasm ./cmd/wasm && wasm-opt -Oz --all-features --strip-producers --strip-target-features main.wasm -o main.wasm",
+    "build": "GOOS=js GOARCH=wasm go build -ldflags '-s -w' -o main.wasm ./cmd/wasm && wasm-opt -Oz --enable-bulk-memory --enable-bulk-memory-opt --enable-sign-ext --enable-nontrapping-float-to-int --strip-producers --strip-target-features main.wasm -o main.wasm",
     "build:copy-wasm-exec": "node scripts/copy-wasm-exec.js",
     "build:ts": "tsc",
     "build:all": "pnpm run build && pnpm run build:copy-wasm-exec && pnpm run build:ts",
