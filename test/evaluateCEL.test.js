@@ -583,5 +583,61 @@ describe("CEL Evaluation", () => {
       // -5 is not a valid uint - should fail rather than produce garbage
       await expect(program.eval({ x: -5 })).rejects.toThrow();
     });
+
+    test("2^53 (max safe integer) should coerce to int correctly", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "int" }],
+      });
+      const program = await env.compile("x == x");
+      const result = await program.eval({ x: Number.MAX_SAFE_INTEGER });
+      expect(result).toBe(true);
+    });
+
+    test("2^63 should not be coerced to int (out of range)", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "int" }],
+      });
+      const program = await env.compile("x + 1");
+      // 2^63 overflows int64 - should fail rather than produce undefined behavior
+      await expect(program.eval({ x: 2 ** 63 })).rejects.toThrow();
+    });
+
+    test("2^64 should not be coerced to uint (out of range)", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "uint" }],
+      });
+      const program = await env.compile("x + 1u");
+      // 2^64 overflows uint64 - should fail rather than produce undefined behavior
+      await expect(program.eval({ x: 2 ** 64 })).rejects.toThrow();
+    });
+
+    test("NaN should not be coerced to int", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "int" }],
+      });
+      const program = await env.compile("x + 1");
+      await expect(program.eval({ x: NaN })).rejects.toThrow();
+    });
+
+    test("Infinity should not be coerced to int", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "int" }],
+      });
+      const program = await env.compile("x + 1");
+      await expect(program.eval({ x: Infinity })).rejects.toThrow();
+    });
+
+    test("-Infinity should not be coerced to int", async () => {
+      const env = await Env.new({
+        variables: [{ name: "x", type: "int" }],
+      });
+      const program = await env.compile("x + 1");
+      await expect(program.eval({ x: -Infinity })).rejects.toThrow();
+    });
+
+    // Note: map-wrapped type forms like { type: "int" } and { name: "uint" }
+    // are accepted by Go's parseTypeDef as fallbacks, and coerceValue handles
+    // them defensively. However, they are untestable from JS because
+    // serializeTypeDef normalizes them to "dyn" before they reach Go.
   });
 });
