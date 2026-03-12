@@ -1,4 +1,4 @@
-import { Env, CELFunction, listType } from "../dist/index.js";
+import { Env, CELFunction, Options, listType, optionalType } from "../dist/index.js";
 
 describe("Custom Functions", () => {
   describe("Basic function definition and usage", () => {
@@ -49,6 +49,28 @@ describe("Custom Functions", () => {
       const program = await env.compile("subtract(x, y)");
       const result = await program.eval({ x: 100, y: 30 });
       expect(result).toBe(70);
+    });
+
+    test("should bridge optional custom function results from JavaScript", async () => {
+      const maybeUpper = CELFunction.new("maybeUpper")
+        .param("value", "string")
+        .returns(optionalType("string"))
+        .implement((value) => String(value).toUpperCase());
+
+      const noValue = CELFunction.new("noValue")
+        .returns(optionalType("string"))
+        .implement(() => null);
+
+      const env = await Env.new({
+        functions: [maybeUpper, noValue],
+        options: [Options.optionalTypes()],
+      });
+
+      const someProgram = await env.compile('maybeUpper("alice").orValue("guest")');
+      const noneProgram = await env.compile("noValue().hasValue()");
+
+      await expect(someProgram.eval()).resolves.toBe("ALICE");
+      await expect(noneProgram.eval()).resolves.toBe(false);
     });
   });
 

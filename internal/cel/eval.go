@@ -258,7 +258,7 @@ func CreateEnvWithOptions(varDecls []VarDecl, funcDefs []FunctionDef, optionsJSO
 							return types.NewErr("function call error: %v", err)
 						}
 						// Convert result back to CEL value
-						return JSONToValue(result)
+						return JSONToValue(result, funcDef.ReturnType)
 					}
 
 					return types.NewErr("JavaScript function caller not set")
@@ -660,6 +660,12 @@ func coerceVarTypes(vars map[string]interface{}, varDecls []VarDecl) (map[string
 
 // coerceValue coerces a single value to match the expected CEL type definition.
 func coerceValue(val interface{}, typeDef interface{}) (interface{}, error) {
+	if typeDefMap, ok := typeDef.(map[string]interface{}); ok {
+		if kind, ok := typeDefMap["kind"].(string); ok && kind == "optional" {
+			return coerceToComplexType(val, typeDefMap)
+		}
+	}
+
 	if val == nil {
 		return nil, nil
 	}
@@ -751,6 +757,31 @@ func coerceToComplexType(val interface{}, typeDefMap map[string]interface{}) (in
 	}
 
 	switch kind {
+	case "optional":
+		if val == nil {
+			return types.OptionalNone, nil
+		}
+
+		if opt, ok := val.(*types.Optional); ok {
+			if !opt.HasValue() {
+				return types.OptionalNone, nil
+			}
+			return opt, nil
+		}
+
+		innerType := typeDefMap["innerType"]
+		if innerType == nil {
+			return types.OptionalOf(nativeToCELValue(val)), nil
+		}
+
+		coerced, err := coerceValue(val, innerType)
+		if err != nil {
+			return nil, err
+		}
+		if coerced == nil {
+			return types.OptionalNone, nil
+		}
+		return types.OptionalOf(JSONToValue(coerced, innerType)), nil
 	case "list":
 		arr, ok := val.([]interface{})
 		if !ok {
@@ -1097,7 +1128,34 @@ func ValueToJSON(val ref.Val) interface{} {
 }
 
 // JSONToValue converts a JSON-serializable value to a CEL ref.Val
-func JSONToValue(val interface{}) ref.Val {
+func JSONToValue(val interface{}, typeDef ...interface{}) ref.Val {
+	if len(typeDef) > 0 {
+		if typeDefMap, ok := typeDef[0].(map[string]interface{}); ok {
+			if kind, ok := typeDefMap["kind"].(string); ok && kind == "optional" {
+				if val == nil {
+					return types.OptionalNone
+				}
+				if opt, ok := val.(*types.Optional); ok {
+					return opt
+				}
+
+				innerType := typeDefMap["innerType"]
+				if innerType != nil {
+					coerced, err := coerceValue(val, innerType)
+					if err != nil {
+						return types.NewErr("failed to coerce optional value: %v", err)
+					}
+					if coerced == nil {
+						return types.OptionalNone
+					}
+					return types.OptionalOf(JSONToValue(coerced, innerType))
+				}
+
+				return types.OptionalOf(nativeToCELValue(val))
+			}
+		}
+	}
+
 	if val == nil {
 		return types.NullValue
 	}
@@ -1173,6 +1231,13 @@ func JSONToValue(val interface{}) ref.Val {
 		}
 		return JSONToValue(jsonVal)
 	}
+}
+
+func nativeToCELValue(val interface{}) ref.Val {
+	if refVal, ok := val.(ref.Val); ok {
+		return refVal
+	}
+	return types.DefaultTypeAdapter.NativeToValue(val)
 }
 
 // UnregisterFunctionCaller is an interface for unregistering functions
