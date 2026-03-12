@@ -24,10 +24,16 @@ jobs:
         with:
           node-version: "24.14.0"
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: latest
+
+      - name: Install wasm-opt
+        run: cargo install wasm-opt
 
       - name: Install dependencies
         run: pnpm install
@@ -62,10 +68,16 @@ jobs:
         with:
           node-version: "24.14.0"
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: latest
+
+      - name: Install wasm-opt
+        run: cargo install wasm-opt
 
       - name: Install dependencies
         run: pnpm install
