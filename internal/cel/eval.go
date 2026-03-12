@@ -927,6 +927,14 @@ func parseTypeDef(typeDef interface{}) *exprpb.Type {
 				valueType = parseTypeDef(vt)
 			}
 			return decls.NewMapType(keyType, valueType)
+		case "optional":
+			if innerType, ok := typeDefMap["innerType"].(map[string]interface{}); ok {
+				return decls.NewOptionalType(parseTypeDef(innerType))
+			}
+			if innerTypeStr, ok := typeDefMap["innerType"].(string); ok {
+				return decls.NewOptionalType(parseTypeDef(innerTypeStr))
+			}
+			return decls.NewOptionalType(decls.Dyn)
 		}
 	}
 
@@ -1011,6 +1019,14 @@ func typeToJSON(exprType *exprpb.Type) interface{} {
 			"kind":      "map",
 			"keyType":   typeToJSON(mapType.GetKeyType()),
 			"valueType": typeToJSON(mapType.GetValueType()),
+		}
+	case *exprpb.Type_AbstractType_:
+		abstractType := exprType.GetAbstractType()
+		if abstractType.GetName() == "optional_type" && len(abstractType.GetParameterTypes()) == 1 {
+			return map[string]interface{}{
+				"kind":      "optional",
+				"innerType": typeToJSON(abstractType.GetParameterTypes()[0]),
+			}
 		}
 	case *exprpb.Type_Null:
 		return "null"

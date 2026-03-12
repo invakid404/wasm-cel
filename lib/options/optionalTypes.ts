@@ -2,7 +2,24 @@
  * OptionalTypes CEL environment option
  */
 
+import type {
+  _types,
+  CELTypeDef,
+  TypeExtensionHKT,
+  TypedEnvOption,
+} from "../types.js";
 import type { EnvOptionConfig } from "./base.js";
+
+type Cast<T, U> = T extends U ? T : U;
+
+export interface CELOptionalType<T = CELTypeDef<any>> {
+  kind: "optional";
+  innerType: T;
+}
+
+export interface OptionalTypesExt extends TypeExtensionHKT {
+  fn: (types: Cast<this[typeof _types], CELTypeDef<any>>) => CELOptionalType<typeof types>;
+}
 
 /**
  * Configuration for OptionalTypes CEL environment option
@@ -28,7 +45,7 @@ export interface OptionalTypesConfig {
  * });
  * ```
  */
-export function optionalTypes(): EnvOptionConfig {
+export function optionalTypes(): EnvOptionConfig & TypedEnvOption<[OptionalTypesExt]> {
   return {
     type: "OptionalTypes",
     params: {},

@@ -19,7 +19,7 @@ const module = isBrowser
 
 // Re-export everything
 export const { Program, Env, init } = module;
-export { listType, mapType, CELFunction } from "./functions.js";
+export { listType, mapType, optionalType, CELFunction } from "./functions.js";
 export type { CELTypeToTS, ExtractParamTypes } from "./functions.js";
 export { Options } from "./options/index.js";
 
@@ -29,6 +29,9 @@ export type {
   CELTypeDef,
   CELListType,
   CELMapType,
+  EnvExtensions,
+  InferExtensions,
+  TypeExtensionHKT,
   CELFunctionDefinition,
   CELFunctionParam,
   EnvOptions,
@@ -40,6 +43,8 @@ export type {
 
 export type {
   EnvOptionConfig,
+  CELOptionalType,
+  OptionalTypesExt,
   OptionalTypesConfig,
   ValidationIssue,
   ValidationContext,

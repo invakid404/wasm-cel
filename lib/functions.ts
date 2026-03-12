@@ -6,7 +6,18 @@ import type {
   CELFunctionDefinition,
   CELFunctionParam,
   CELTypeDef,
+  EnvWithExtensions,
+  TypeExtensionHKT,
 } from "./types.js";
+import type { CELOptionalType } from "./options/optionalTypes.js";
+
+type CELFunctionContext = TypeExtensionHKT[] | EnvWithExtensions<any>;
+
+type ResolveFunctionExtensions<Context> = Context extends TypeExtensionHKT[]
+  ? Context
+  : Context extends EnvWithExtensions<infer Exts>
+    ? Exts
+    : [];
 
 /**
  * Maps a CEL type definition to its corresponding TypeScript type.
@@ -24,7 +35,7 @@ import type {
  * ```
  */
 export type CELTypeToTS<
-  T extends CELTypeDef,
+  T extends CELTypeDef<any>,
   Depth extends readonly unknown[] = [],
 > = Depth["length"] extends 5
   ? any // Limit recursion depth to 5 levels
@@ -44,6 +55,8 @@ export type CELTypeToTS<
               ? V extends CELTypeDef
                 ? Record<string, CELTypeToTS<V, [...Depth, unknown]>>
                 : never
+              : T extends CELOptionalType<infer Inner>
+                ? CELTypeToTS<Inner, [...Depth, unknown]> | null
               : T extends "dyn"
                 ? any
                 : T extends "null"
@@ -74,7 +87,7 @@ export type CELTypeToTS<
  * type Args = ExtractParamTypes<Params>; // [number, string, boolean | undefined]
  * ```
  */
-export type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
+export type ExtractParamTypes<P extends readonly CELFunctionParam<any>[]> = {
   [K in keyof P]: P[K] extends CELFunctionParam
     ? P[K]["optional"] extends true
       ? CELTypeToTS<P[K]["type"]> | undefined
@@ -97,20 +110,21 @@ export type ExtractParamTypes<P extends readonly CELFunctionParam[]> = {
 type BuilderStage = "params" | "returns";
 
 export class CELFunction<
+  Context extends CELFunctionContext | [] = [],
   Stage extends BuilderStage = "params",
-  Params extends readonly CELFunctionParam[] = readonly [],
-  ReturnType extends CELTypeDef = "dyn",
+  Params extends readonly CELFunctionParam<ResolveFunctionExtensions<Context>>[] = readonly [],
+  ReturnType extends CELTypeDef<ResolveFunctionExtensions<Context>> = "dyn",
 > {
   private readonly stageMarker!: Stage;
   private name: string;
-  private readonly params: CELFunctionParam[];
-  private returnType: CELTypeDef;
+  private readonly params: CELFunctionParam<ResolveFunctionExtensions<Context>>[];
+  private returnType: CELTypeDef<ResolveFunctionExtensions<Context>>;
   private overloads: CELFunctionDefinition[] = [];
 
   private constructor(
     name: string,
-    params: CELFunctionParam[] = [],
-    returnType: CELTypeDef = "dyn",
+    params: CELFunctionParam<ResolveFunctionExtensions<Context>>[] = [],
+    returnType: CELTypeDef<ResolveFunctionExtensions<Context>> = "dyn",
     overloads: CELFunctionDefinition[] = [],
   ) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
@@ -138,19 +152,25 @@ export class CELFunction<
    *   .implement((a, b) => a + b);
    * ```
    */
-  static new(name: string): CELFunction<"params", readonly [], "dyn"> {
-    return new CELFunction<"params", readonly [], "dyn">(name);
+  static new<Context extends CELFunctionContext | [] = []>(
+    name: string,
+  ): CELFunction<Context, "params", readonly [], "dyn"> {
+    return new CELFunction<Context, "params", readonly [], "dyn">(name);
   }
 
   /**
    * Add a parameter to the function
    */
-  param<T extends CELTypeDef, Optional extends boolean = false>(
-    this: CELFunction<"params", Params, ReturnType>,
+  param<
+    T extends CELTypeDef<ResolveFunctionExtensions<Context>>,
+    Optional extends boolean = false,
+  >(
+    this: CELFunction<Context, "params", Params, ReturnType>,
     name: string,
     type: T,
     optional?: Optional,
   ): CELFunction<
+    Context,
     "params",
     readonly [...Params, { name: string; type: T; optional: Optional }],
     ReturnType
@@ -158,8 +178,9 @@ export class CELFunction<
     const newParams = [
       ...this.params,
       { name, type, optional: (optional ?? false) as Optional },
-    ] as CELFunctionParam[];
+    ] as CELFunctionParam<ResolveFunctionExtensions<Context>>[];
     return new CELFunction<
+      Context,
       "params",
       readonly [...Params, { name: string; type: T; optional: Optional }],
       ReturnType
@@ -169,11 +190,11 @@ export class CELFunction<
   /**
    * Set the return type of the function
    */
-  returns<T extends CELTypeDef>(
-    this: CELFunction<"params", Params, ReturnType>,
+  returns<T extends CELTypeDef<ResolveFunctionExtensions<Context>>>(
+    this: CELFunction<Context, "params", Params, ReturnType>,
     type: T,
-  ): CELFunction<"returns", Params, T> {
-    return new CELFunction<"returns", Params, T>(
+  ): CELFunction<Context, "returns", Params, T> {
+    return new CELFunction<Context, "returns", Params, T>(
       this.name,
       this.params,
       type,
@@ -185,7 +206,7 @@ export class CELFunction<
    * Set the implementation function and return the final definition
    */
   implement(
-    this: CELFunction<"returns", Params, ReturnType>,
+    this: CELFunction<Context, "returns", Params, ReturnType>,
     impl: (...args: ExtractParamTypes<Params>) => CELTypeToTS<ReturnType>,
   ): CELFunctionDefinition {
     const definition = {
@@ -206,9 +227,9 @@ export class CELFunction<
    * Add an overload variant of this function
    */
   overload(
-    this: CELFunction<"returns", Params, ReturnType>,
+    this: CELFunction<Context, "returns", Params, ReturnType>,
     overload: CELFunctionDefinition,
-  ): CELFunction<"returns", Params, ReturnType> {
+  ): CELFunction<Context, "returns", Params, ReturnType> {
     if (overload.name !== this.name) {
       throw new Error(
         `Overload name mismatch: expected ${this.name}, got ${overload.name}`,
@@ -222,9 +243,11 @@ export class CELFunction<
 /**
  * Helper function to create a list type
  */
-export function listType(elementType: CELTypeDef): {
+export function listType<Exts extends TypeExtensionHKT[] = []>(
+  elementType: CELTypeDef<Exts>,
+): {
   kind: "list";
-  elementType: CELTypeDef;
+  elementType: CELTypeDef<Exts>;
 } {
   return { kind: "list", elementType };
 }
@@ -237,4 +260,10 @@ export function mapType(
   valueType: CELTypeDef,
 ): { kind: "map"; keyType: CELTypeDef; valueType: CELTypeDef } {
   return { kind: "map", keyType, valueType };
+}
+
+export function optionalType<const T extends CELTypeDef<any>>(
+  innerType: T,
+): CELOptionalType<T> {
+  return { kind: "optional", innerType };
 }

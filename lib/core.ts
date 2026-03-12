@@ -1,8 +1,12 @@
+import { _envExtensions } from "./types.js";
 import type {
   CELFunctionDefinition,
   CELTypeDef,
   EnvOptions,
+  EnvWithExtensions,
+  InferExtensions,
   TypeCheckResult,
+  TypeExtensionHKT,
 } from "./types.js";
 
 // Init function that will be set by the environment-specific entry point
@@ -110,7 +114,7 @@ function decodeBytes(value: any): any {
 /**
  * Serialize a CEL type definition to a format that can be sent to Go
  */
-function serializeTypeDef(type: CELTypeDef): any {
+function serializeTypeDef(type: CELTypeDef<any>): any {
   if (typeof type === "string") {
     return type;
   }
@@ -127,6 +131,12 @@ function serializeTypeDef(type: CELTypeDef): any {
           kind: "map",
           keyType: serializeTypeDef(type.keyType),
           valueType: serializeTypeDef(type.valueType),
+        };
+      }
+      if ((type as any).kind === "optional") {
+        return {
+          kind: "optional",
+          innerType: serializeTypeDef((type as any).innerType),
         };
       }
     }
@@ -319,9 +329,12 @@ export class Program {
 /**
  * A CEL environment that holds variable declarations and function definitions
  */
-export class Env {
+export class Env<Exts extends TypeExtensionHKT[] = []>
+  implements EnvWithExtensions<Exts>
+{
   private envID: string;
   private destroyed: boolean = false;
+  declare readonly [_envExtensions]?: Exts;
 
   private constructor(envID: string) {
     this.envID = envID;
@@ -364,7 +377,11 @@ export class Env {
    * });
    * ```
    */
-  static async new(options?: EnvOptions): Promise<Env> {
+  static async new<Opts extends readonly import("./options/index.js").EnvOptionInput<any>[] = []>(
+    options?: Omit<EnvOptions<InferExtensions<Opts>>, "options"> & {
+      options?: Opts;
+    },
+  ): Promise<Env<InferExtensions<Opts>>> {
     await init();
 
     // Serialize variable declarations
@@ -381,7 +398,7 @@ export class Env {
 
     // INTERNAL: Create environment first without options, then extend if needed
     // This allows complex options to perform JavaScript-side setup before being applied
-    const env = await new Promise<Env>((resolve, reject) => {
+    const env = await new Promise<Env<InferExtensions<Opts>>>((resolve, reject) => {
       try {
         const globalObj =
           typeof globalThis !== "undefined" ? globalThis : global;
@@ -392,7 +409,7 @@ export class Env {
         } else if (!result.envID) {
           reject(new Error("Environment creation failed: no envID returned"));
         } else {
-          resolve(new Env(result.envID));
+          resolve(new Env<InferExtensions<Opts>>(result.envID));
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
@@ -403,7 +420,7 @@ export class Env {
     // INTERNAL: If options were provided, extend the environment
     // This allows options to perform JavaScript-side setup (like registering functions)
     if (options?.options && options.options.length > 0) {
-      await env._extendWithOptions(options.options);
+      await env._extendWithOptions([...options.options]);
     }
 
     return env;

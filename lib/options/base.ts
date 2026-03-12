@@ -2,6 +2,8 @@
  * Base types and interfaces for CEL environment options
  */
 
+import type { TypedEnvOption, TypeExtensionHKT } from "../types.js";
+
 /**
  * Interface representing the environment capabilities available to options during setup
  */
@@ -70,4 +72,6 @@ export type EnvOptionConfig =
 /**
  * Union type of all available option inputs (simple configs or complex options with setup)
  */
-export type EnvOptionInput = EnvOptionConfig | OptionWithSetup;
+export type EnvOptionInput<Exts extends TypeExtensionHKT[] = any> =
+  | (EnvOptionConfig & TypedEnvOption<Exts>)
+  | OptionWithSetup;

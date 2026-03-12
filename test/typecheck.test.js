@@ -1,4 +1,4 @@
-import { Env } from "../dist/index.js";
+import { CELFunction, Env, Options, optionalType } from "../dist/index.js";
 
 describe("CEL Typechecking", () => {
   describe("Basic type inference", () => {
@@ -108,6 +108,45 @@ describe("CEL Typechecking", () => {
       });
       const result = await env.typecheck('myMap["key"]');
       expect(result.type).toBe("int");
+    });
+  });
+
+  describe("Optional types", () => {
+    test("should reject optional type declarations when OptionalTypes is not enabled", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "maybeName", type: optionalType("string") },
+        ],
+      });
+
+      await expect(env.typecheck('maybeName.orValue("guest")')).rejects.toThrow();
+    });
+
+    test("should typecheck variables declared as optional types", async () => {
+      const env = await Env.new({
+        variables: [
+          { name: "maybeName", type: optionalType("string") },
+        ],
+        options: [Options.optionalTypes()],
+      });
+
+      const result = await env.typecheck('maybeName.orValue("guest")');
+      expect(result.type).toBe("string");
+    });
+
+    test("should typecheck functions with optional parameters and returns", async () => {
+      const wrap = CELFunction.new("wrap")
+        .param("value", optionalType("string"))
+        .returns(optionalType("string"))
+        .implement((value) => value);
+
+      const env = await Env.new({
+        functions: [wrap],
+        options: [Options.optionalTypes()],
+      });
+
+      const result = await env.typecheck('wrap(optional.of("hi")).orValue("bye")');
+      expect(result.type).toBe("string");
     });
   });
 
