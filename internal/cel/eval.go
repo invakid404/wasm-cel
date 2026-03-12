@@ -677,14 +677,25 @@ func coerceValue(val interface{}, typeDef interface{}) interface{} {
 // coerceToNamedType handles coercion for simple type names like "int", "uint".
 // If the float64 value is not a whole number or is out of range for the target
 // type, the value is returned uncoerced so that CEL reports the type mismatch.
+//
+// Range bounds use exclusive upper limits that are exactly representable in
+// float64. math.MaxInt64 (2^63-1) and math.MaxUint64 (2^64-1) round up to
+// 2^63 and 2^64 respectively when converted to float64, so comparing with
+// them directly would let those exact boundary values slip through.
 func coerceToNamedType(val interface{}, typeName string) interface{} {
+	const (
+		minInt64Float      = -1 << 63 // -9223372036854775808.0, exact in float64
+		maxInt64Exclusive  = 1 << 63  // 9223372036854775808.0, exact in float64
+		maxUint64Exclusive = 1 << 64  // 18446744073709551616.0, exact in float64
+	)
+
 	switch typeName {
 	case "int":
 		if f, ok := val.(float64); ok {
 			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Floor(f) {
 				return val
 			}
-			if f > math.MaxInt64 || f < math.MinInt64 {
+			if f < minInt64Float || f >= maxInt64Exclusive {
 				return val
 			}
 			return int64(f)
@@ -694,7 +705,7 @@ func coerceToNamedType(val interface{}, typeName string) interface{} {
 			if math.IsNaN(f) || math.IsInf(f, 0) || f != math.Floor(f) || f < 0 {
 				return val
 			}
-			if f > math.MaxUint64 {
+			if f >= maxUint64Exclusive {
 				return val
 			}
 			return uint64(f)
